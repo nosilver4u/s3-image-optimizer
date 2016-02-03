@@ -3,8 +3,8 @@ Contributors: nosilver4u
 Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=MKMQKCBFFG3WW
 Tags: amazone, s3, cloudfront, image, optimize, optimization, photo, picture, seo, compression, wp-cli 
 Requires at least: 3.8
-Tested up to: 4.4
-Stable tag: .1
+Tested up to: 4.4.2
+Stable tag: .4
 License: GPLv3
 
 Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
@@ -31,6 +31,16 @@ It currently uses a web-based optimization process, but a wp-cli interface is on
 Start asking, and then we'll see what needs answering: https://wordpress.org/support/plugin/s3-image-optimizer
 
 == Changelog ==
+
+= .4 =
+* ported table schema fixes from EWWW I.O.
+* added option for Frankfurt S3 authentication method
+
+= .3 =
+* automatic update checking and license activation
+
+= .2 =
+* bugfixes
 
 = .1 =
 * First release

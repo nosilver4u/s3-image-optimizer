@@ -4,12 +4,12 @@ Plugin Name: S3 Image Optimizer
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
 Text Domain: s3-image-optimizer
-Version: .2
+Version: .4
 Author URI: https://ewww.io/
 */
 
 // Constants
-define( 'S3IO_VERSION', '.24' );
+define( 'S3IO_VERSION', '.40' );
 // this is the full path of the plugin file itself
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // this is the path of the plugin file relative to the plugins/ folder
@@ -22,6 +22,7 @@ define( 'S3IO_SL_ITEM_NAME', 'S3 Image Optimizer' );
 add_action( 'admin_init', 's3io_admin_init' );
 add_action( 'admin_menu', 's3io_admin_menu', 60 );
 add_action( 'admin_init', 's3io_activate_license' );
+add_filter( 'aws_get_client_args', 's3io_eucentral_args' );
 
 global $wpdb;
 if ( ! isset( $wpdb->s3io_images ) ) {
@@ -46,6 +47,7 @@ function s3io_admin_init() {
 	register_setting( 's3io_options', 's3io_bucketlist', 's3io_bucketlist_sanitize' );
 	register_setting( 's3io_options', 's3io_resume' );
 	register_setting( 's3io_options', 's3io_license_key', 's3io_license_sanitize' );
+	register_setting( 's3io_options', 's3io_eucentral' );
 	if ( get_option( 's3io_version' ) < S3IO_VERSION ) {
 		s3io_install_table();
 		//s3io_set_defaults();
@@ -69,7 +71,7 @@ function s3io_admin_init() {
 	}
 	$license_key = trim( get_option( 's3io_license_key' ) );
 	$edd_updater = new EDD_SL_Plugin_Updater( S3IO_SL_STORE_URL, __FILE__, array(
-		'version'	=> '0.2',
+		'version'	=> '.4',
 		'license'	=> $license_key,
 		'item_name'	=> S3IO_SL_ITEM_NAME,
 		'author'	=> 'Shane Bishop',
@@ -79,29 +81,40 @@ function s3io_admin_init() {
 
 function s3io_install_table() {
 	global $wpdb;
-	//TODO: make this as robust as the ewwwio_table stuff to avoid mb4 issues on the index
+
+	//see if the path column exists, and what collation it uses to determine the column index size
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '$wpdb->s3io_images'" ) == $wpdb->s3io_images ) {
+                $current_collate = $wpdb->get_results( "SHOW FULL COLUMNS FROM $wpdb->s3io_images", ARRAY_A );
+                if ( ! empty( $current_collate[1]['Field'] ) && $current_collate[1]['Field'] === 'path' && strpos( $current_collate[1]['Collation'], 'utf8mb4' ) === false ) {
+                        $path_index_size = 255;
+                }
+	}
 	$charset_collate = $wpdb->get_charset_collate();
+
+	if ( empty( $path_index_size ) && strpos( $charset_collate, 'utf8mb4' ) ) {
+		$path_index_size = 191;
+	} else {
+		$path_index_size = 255;
+	}
 	
-	// create a table with 5 columns: an id, the file path, the optimization results, optimized image size, and original image size
+	// create a table with 6 columns: an id, the bucket name, the file path, the optimization results, optimized image size, and original image size
 	$sql = "CREATE TABLE $wpdb->s3io_images (
 		id mediumint(9) NOT NULL AUTO_INCREMENT,
 		bucket VARCHAR(100),
 		path text NOT NULL,
 		results VARCHAR(55) NOT NULL,
-		image_size int UNSIGNED,
-		orig_size int UNSIGNED,
+		image_size int(10) unsigned,
+		orig_size int(10) unsigned,
 		UNIQUE KEY id (id),
-		KEY path_image_size (path(255),image_size)
+		KEY path_image_size (path($path_index_size),image_size)
 	) $charset_collate;";
 
 	// include the upgrade library to initialize a table
 	require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
 	dbDelta( $sql );
-	
+
+	// no need to autoload this option (even if it is small) since we only use it on manual activation	
 	add_option( 's3io_license_status', '', 'no' );
-/*	$s3io_attachments = get_option( 's3io_attachments', '' );
-	delete_option( 's3io_attachments' );
-	add_option('s3io_attachments', $s3io_attachments, '', 'no');*/
 }
 
 function s3io_activate_license() {
@@ -162,6 +175,14 @@ function s3io_admin_background() {
 	}
 }
 
+function s3io_eucentral_args( $args ) {
+	if ( get_option( 's3io_eucentral' ) ) {
+		$args['signature'] = 'v4';
+		$args['region'] = 'eu-central-1';
+	}
+	return $args;
+}
+
 function s3io_missing_aws_plugin() {
 	echo "<div id='s3io-error-aws' class='error'><p>" . __( 'Could not detect the Amazon Web Services plugin, please install and configure it first.', 's3-image-optimizer' ) . "</p></div>";
 }
@@ -189,6 +210,7 @@ function s3io_options_page() {
 		$client = $aws->get( 'S3' );
 		$buckets = $client->listBuckets();
 		$license_status = get_option( 's3io_license_status' );
+//	if ( get_option( 's3io_eucentral' ) ) {
 ?>
 		<div class='wrap'>
 			<h1>S3 Image Optimizer</h1>
@@ -223,6 +245,8 @@ function s3io_options_page() {
 						echo "{$bucket['Name']}<br>\n";
 					}?>
 					</p>
+					</td></tr>
+					<tr><th><label for='s3io_eucentral'><?php _e( 'S3 Frankfurt', 's3-image-optimizer' ); ?></label></th><td><span><input type='checkbox' id='s3io_eucentral' name='s3io_eucentral' value='true' <?php if ( get_option( 's3io_eucentral' ) == TRUE ) { echo "checked='true' />"; } else { echo "/>"; } _e( 'Check this option if your buckets are hosted in the Frankfurt S3 region.', 's3-image-optimizer' ); ?></span>
 					</td></tr>
 				</table>
 				<p class='submit'><input type='submit' class='button-primary' value='<?php _e( 'Save Changes', 's3-image-optimizer' ) ?>' /></p>
