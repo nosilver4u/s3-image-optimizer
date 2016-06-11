@@ -4,12 +4,12 @@ Plugin Name: S3 Image Optimizer
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
 Text Domain: s3-image-optimizer
-Version: .5
+Version: .6
 Author URI: https://ewww.io/
 */
 
 // Constants
-define( 'S3IO_VERSION', '.50' );
+define( 'S3IO_VERSION', '.60' );
 // this is the full path of the plugin file itself
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // this is the path of the plugin file relative to the plugins/ folder
@@ -243,11 +243,10 @@ function s3io_options_page() {
 					<p class='description'><?php _e( 'These are the buckets that we have access to optimize:', 's3-image-optimizer' ) ?><br>
 <?php					foreach ( $buckets['Buckets'] as $bucket ) {
 						echo "{$bucket['Name']}<br>\n";
-						echo "<br>";
 					}?>
 					</p>
 					</td></tr>
-					<tr><th><label for='s3io_eucentral'><?php _e( 'S3 Frankfurt', 's3-image-optimizer' ); ?></label></th><td><span><input type='checkbox' id='s3io_eucentral' name='s3io_eucentral' value='true' <?php if ( get_option( 's3io_eucentral' ) == TRUE ) { echo "checked='true' />"; } else { echo "/>"; } _e( 'Check this option if your buckets are hosted in the Frankfurt S3 region.', 's3-image-optimizer' ); ?></span>
+					<tr><th><label for='s3io_eucentral'><?php _e( 'S3 Frankfurt', 's3-image-optimizer' ); ?></label></th><td><span><input type='checkbox' id='s3io_eucentral' name='s3io_eucentral' value='true' <?php if ( get_option( 's3io_eucentral' ) == TRUE ) { echo "checked='true' />"; } else { echo "/>"; } _e( 'DEPRECATED: Enable this only if you encounter a fatal error, and please let us know at https://ewww.io/contact-us/. Use this option if your buckets are hosted in the Frankfurt S3 region.', 's3-image-optimizer' ); ?></span>
 					</td></tr>
 				</table>
 				<p class='submit'><input type='submit' class='button-primary' value='<?php _e( 'Save Changes', 's3-image-optimizer' ) ?>' /></p>

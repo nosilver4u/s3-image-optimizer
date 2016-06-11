@@ -1,9 +1,9 @@
 === S3 Image Optimizer ===
 Contributors: nosilver4u
 Tags: amazon, s3, cloudfront, image, optimize, optimization, photo, picture, seo, compression, wp-cli 
-Requires at least: 3.8
-Tested up to: 4.5
-Stable tag: .5
+Requires at least: 4.4
+Tested up to: 4.5.2
+Stable tag: .6
 License: GPLv3
 
 Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
@@ -30,6 +30,9 @@ It currently uses a web-based optimization process, but a wp-cli interface is on
 Start asking, and then we'll see what needs answering: https://wordpress.org/support/plugin/s3-image-optimizer
 
 == Changelog ==
+
+= .6 =
+* fixed fatal error when bucket region is not set properly
 
 = .5 =
 * fixed fatal error when other plugins are using EDD SL Updates class
