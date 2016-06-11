@@ -4,12 +4,12 @@ Plugin Name: S3 Image Optimizer
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
 Text Domain: s3-image-optimizer
-Version: .4
+Version: .5
 Author URI: https://ewww.io/
 */
 
 // Constants
-define( 'S3IO_VERSION', '.40' );
+define( 'S3IO_VERSION', '.50' );
 // this is the full path of the plugin file itself
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // this is the path of the plugin file relative to the plugins/ folder
@@ -66,12 +66,12 @@ function s3io_admin_init() {
 		add_action( 'admin_notices', 's3io_missing_ewww_plugin');
 	}
 
-	if ( ! class_exists( 'EDD_SL_Plugin' ) ) {
+	if ( ! class_exists( 'EDD_SL_Plugin_Updater' ) ) {
 		include( dirname( __FILE__ ) . '/EDD_SL_Plugin_Updater.php' );
 	}
 	$license_key = trim( get_option( 's3io_license_key' ) );
 	$edd_updater = new EDD_SL_Plugin_Updater( S3IO_SL_STORE_URL, __FILE__, array(
-		'version'	=> '.4',
+		'version'	=> '.5',
 		'license'	=> $license_key,
 		'item_name'	=> S3IO_SL_ITEM_NAME,
 		'author'	=> 'Shane Bishop',
@@ -243,6 +243,7 @@ function s3io_options_page() {
 					<p class='description'><?php _e( 'These are the buckets that we have access to optimize:', 's3-image-optimizer' ) ?><br>
 <?php					foreach ( $buckets['Buckets'] as $bucket ) {
 						echo "{$bucket['Name']}<br>\n";
+						echo "<br>";
 					}?>
 					</p>
 					</td></tr>
@@ -381,6 +382,12 @@ function s3io_image_scan() {
 		}
 	}
 	foreach ( $bucket_list as $bucket ) {
+		$location = $client->getBucketLocation( array(
+			'Bucket' => $bucket,
+		) );
+		if ( ! empty( $location['Location'] ) ) {
+			$client->setRegion( $location['Location'] );
+		}
 		$iterator = $client->getIterator( 'ListObjects', array(
 			'Bucket' => $bucket,
 		) );
@@ -712,10 +719,6 @@ function s3io_bulk_loop( $key = null, $auto = false ) {
 	if ( ini_get( 'max_execution_time' ) < 60 ) {
 		set_time_limit ( 0 );
 	}
-	// get the path of the current attachment
-/*	if ( empty( $key ) ) {
-		$key = $_POST['s3io_key'];
-	}*/
 	global $wpdb;
 	$image_record = $wpdb->get_row( "SELECT id,bucket,path,orig_size FROM $wpdb->s3io_images WHERE image_size IS NULL", ARRAY_A );
 	$upload_dir = wp_upload_dir();
@@ -723,6 +726,12 @@ function s3io_bulk_loop( $key = null, $auto = false ) {
 	global $amazon_web_services;
 	$aws = $amazon_web_services->get_client();
 	$client = $aws->get( 'S3' );
+	$location = $client->getBucketLocation( array(
+		'Bucket' => $image_record['bucket'],
+	) );
+	if ( ! empty( $location['Location'] ) ) {
+		$client->setRegion( $location['Location'] );
+	}
 	$filename = $upload_dir . $image_record['path'];
 	$full_dir = dirname( $filename );
 	if ( ! is_dir( $full_dir ) ) {
@@ -758,12 +767,17 @@ function s3io_bulk_loop( $key = null, $auto = false ) {
 			'Bucket' => $image_record['bucket'],
 			'Key' => $image_record['path'],
 			'SourceFile' => $filename,
+			'ACL' => 'public-read',
+			'ContentType' => $fetch_result['ContentType'],
+			'CacheControl' => 'max-age=31536000',
+			'Expires' => date( 'D, d M Y H:i:s O', time() + 31536000 ),
 		) );
 	}
 	unlink( $filename );
 	s3io_table_update( $image_record['path'], $new_size, $fetch_result['ContentLength'], $results[1] );
 	$query = $wpdb->prepare( "DELETE FROM $wpdb->s3io_images WHERE path = %s", $filename );
 	$wpdb->query( $query );
+	ewww_image_optimizer_debug_log();
 	if ( ! $auto ) {
 		// output the path
 		printf( "<p>" . __( 'Optimized image:', 's3-image-optimizer' ) . " <strong>%s</strong><br>", esc_html( $image_record['path'] ) );
