@@ -4,12 +4,14 @@ Plugin Name: S3 Image Optimizer
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
 Text Domain: s3-image-optimizer
-Version: .6
+Version: .7
 Author URI: https://ewww.io/
 */
 
+// TODO: port the bulk optimize improvements from ewwwio
+
 // Constants
-define( 'S3IO_VERSION', '.60' );
+define( 'S3IO_VERSION', '.70' );
 // this is the full path of the plugin file itself
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // this is the path of the plugin file relative to the plugins/ folder
@@ -71,7 +73,7 @@ function s3io_admin_init() {
 	}
 	$license_key = trim( get_option( 's3io_license_key' ) );
 	$edd_updater = new EDD_SL_Plugin_Updater( S3IO_SL_STORE_URL, __FILE__, array(
-		'version'	=> '.5',
+		'version'	=> '.7',
 		'license'	=> $license_key,
 		'item_name'	=> S3IO_SL_ITEM_NAME,
 		'author'	=> 'Shane Bishop',
@@ -243,6 +245,12 @@ function s3io_options_page() {
 					<p class='description'><?php _e( 'These are the buckets that we have access to optimize:', 's3-image-optimizer' ) ?><br>
 <?php					foreach ( $buckets['Buckets'] as $bucket ) {
 						echo "{$bucket['Name']}<br>\n";
+		echo "<br>";
+		$location = $client->getBucketLocation( array(
+			'Bucket' => $bucket['Name'],
+		) );
+		print_r( $location );
+		echo "<br>";
 					}?>
 					</p>
 					</td></tr>
@@ -317,11 +325,11 @@ function s3io_bulk_script( $hook ) {
 	// initialize the $attachments variable for s3 images
 //	$attachments = array();
 	// check to see if the user has asked to reset (empty) the optimized images table
-	if ( ! empty( $_REQUEST['s3io_force_empty'] ) && wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk' ) ) {
+	if ( ! empty( $_REQUEST['s3io_force_empty'] ) && wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk-empty' ) ) {
 		s3io_table_truncate();
 	}
 	// check to see if we are supposed to reset the bulk operation and verify we are authorized to do so
-	if ( ! empty( $_REQUEST['s3io_reset_bulk'] ) && wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk' ) ) {
+	if ( ! empty( $_REQUEST['s3io_reset_bulk'] ) && wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk-reset' ) ) {
 		update_option( 's3io_resume', '' );
 	}
 	// check the 'bulk resume' option
@@ -386,6 +394,8 @@ function s3io_image_scan() {
 		) );
 		if ( ! empty( $location['Location'] ) ) {
 			$client->setRegion( $location['Location'] );
+		} else {
+			$client->setRegion( 'us-east-1' );
 		}
 		$iterator = $client->getIterator( 'ListObjects', array(
 			'Bucket' => $bucket,
@@ -446,7 +456,7 @@ function s3io_bulk_display() {
 	} else {
 		$button_text = __( 'Resume previous optimization', 's3-image-optimizer' );
 	}
-	$image_count = s3io_table_count_pending(); //count( get_option( 's3io_attachments' ) );
+	$image_count = s3io_table_count_pending();
 	// find out if the auxiliary image table has anything in it
 	$already_optimized = s3io_table_count_optimized();
 	// generate the WP spinner image for display
@@ -488,13 +498,11 @@ function s3io_bulk_display() {
 				<input id="s3io-first" type="submit" class="button-secondary action" value="<?php echo $button_text; ?>" />
 				<input id="s3io-again" type="submit" class="button-secondary action" style="display:none" value="<?php _e( 'Optimize Again', 's3-image-optimizer' ); ?>" />
 			</form>
-<?php		// if the 'resume' option was not empty, offer to reset it so the user can start back from the beginning
-//		if ( ! empty( $s3io_resume ) ) {
-		}
+<?php		} // we can't reset, because the optimizer automatically resumes by nature
 		if ( false ) {
 ?>			<p class="s3io-bulk-info"><?php _e( 'If you would like to start over again, press the Reset Status button to reset the bulk operation status.', 's3-image-optimizer' ); ?></p>
 			<form id="s3io-bulk-reset" class="s3io-bulk-form" method="post" action="">
-				<?php wp_nonce_field( 'ewww-image-optimizer-aux-images', 's3io_wpnonce' ); ?>
+				<?php wp_nonce_field( 's3io-bulk-reset', 's3io_wpnonce' ); ?>
 				<input type="hidden" name="s3io_reset_bulk" value="1">
 				<button type="submit" class="button-secondary action"><?php _e( 'Reset Status', 's3-image-optimizer' ); ?></button>
 			</form>
@@ -505,7 +513,7 @@ function s3io_bulk_display() {
 			$display = '';
 ?>			<p class="s3io-bulk-info" style="margin-top: 2.5em"><?php _e( 'Force a re-optimization of all images by erasing the optimization history. This cannot be undone, as it will remove all optimization records from the database.', 's3-image-optimizer' ); ?></p>
 			<form id="s3io-force-empty" class="s3io-bulk-form" style="margin-bottom: 2.5em" method="post" action="">
-				<?php wp_nonce_field( 's3io-bulk', 's3io_wpnonce' ); ?>
+				<?php wp_nonce_field( 's3io-bulk-empty', 's3io_wpnonce' ); ?>
 				<input type="hidden" name="s3io_force_empty" value="1">
 				<button type="submit" class="button-secondary action"><?php _e( 'Erase Optimization History', 's3-image-optimizer' ); ?></button>
 			</form>
@@ -583,23 +591,14 @@ function s3io_table() {
 	echo '<br /><table class="wp-list-table widefat media" cellspacing="0"><thead><tr><th>' . __( 'Bucket', 's3-image-optimizer' ) . '</th><th>' . __( 'Filename', 's3-image-optimizer' ) . '</th><th>' . __( 'Image Optimizer', 's3-image-optimizer' ) . '</th></tr></thead>';
 	$alternate = true;
 	foreach ( $already_optimized as $optimized_image ) {
-//		$image_name = $optimized_image['path'];
-//		$image_url = trailingslashit( get_site_url() ) . $image_name;
-//		$savings = $optimized_image['results'];
-		// if the path given is not the absolute path
-//		if ( file_exists( $optimized_image[0] ) ) {
-			// retrieve the mimetype of the attachment
-//			$type = ewww_image_optimizer_mimetype( $optimized_image[0], 'i' );
-			// get a human readable filesize
-			$file_size = size_format( $optimized_image['image_size'], 2 );
-			$file_size = str_replace( '.00 B ', ' B', $file_size );
-?>			<tr<?php if ( $alternate ) { echo " class='alternate'"; } ?> id="s3io-image-<?php echo $optimized_image['id']; ?>">
-				<td class='title'><?php echo $optimized_image['bucket']; ?></td>
-				<td class='title'>...<?php echo $optimized_image['path']; ?></td>
-				<td><?php echo "{$optimized_image['results']} <br>" . sprintf( __( 'Image Size: %s', 's3-image-optimizer' ), $file_size ); ?><br><a class="removeimage" onclick="s3ioRemoveImage( <?php echo $optimized_image['id']; ?> )"><?php _e( 'Remove from table', 's3-image-optimizer' ); ?></a></td>
-			</tr>
-<?php			$alternate = ! $alternate;
-//		}
+		$file_size = size_format( $optimized_image['image_size'], 2 );
+		$file_size = str_replace( '.00 B ', ' B', $file_size );
+?>		<tr<?php if ( $alternate ) { echo " class='alternate'"; } ?> id="s3io-image-<?php echo $optimized_image['id']; ?>">
+			<td class='title'><?php echo $optimized_image['bucket']; ?></td>
+			<td class='title'>...<?php echo $optimized_image['path']; ?></td>
+			<td><?php echo "{$optimized_image['results']} <br>" . sprintf( __( 'Image Size: %s', 's3-image-optimizer' ), $file_size ); ?><br><a class="removeimage" onclick="s3ioRemoveImage( <?php echo $optimized_image['id']; ?> )"><?php _e( 'Remove from table', 's3-image-optimizer' ); ?></a></td>
+		</tr>
+<?php		$alternate = ! $alternate;
 	}
 	echo '</table>';
 	die();
@@ -671,11 +670,7 @@ function s3io_bulk_init( $auto = false ) {
 	if ( ! $auto && ( ! wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk' ) || ! current_user_can( $permissions ) ) ) {
 		wp_die( __( 'Access denied.', 's3-image-optimizer' ) );
 	}
-	// update the 'aux resume' option to show that an operation is in progress
-	// NOTE: we don't do this anymore, because every refresh is essentially a "reset", but with resume capability. Why would they want to start from the beginning, when that won't really do anything
-//	update_option( 's3io_resume', 'true' );
 	// store the time and number of images for later display
-//	$count = count( get_option( 's3io_attachments' ) );
 	update_option( 's3io_last_run', array( time(), s3io_table_count_pending() ) );
 	// let the user know that we are beginning
 	if ( ! $auto ) {
