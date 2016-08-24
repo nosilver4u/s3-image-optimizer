@@ -1038,21 +1038,14 @@ function s3io_url_loop() {
 function s3io_get_args_from_url( $url ) {
 	$urlinfo = parse_url( $url );
 	if ( ! $urlinfo ) {
-	ewwwio_debug_message( 'unable to parse url' );
-	ewww_image_optimizer_debug_log();
 		return false;
 	}
 	if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && ! empty( S3_IMAGE_OPTIMIZER_BUCKET ) ) {
-		ewwwio_debug_message( 'checking this bucket: ' . S3_IMAGE_OPTIMIZER_BUCKET );
 		if ( strpos( $urlinfo['host'], S3_IMAGE_OPTIMIZER_BUCKET ) !== false ) {
-	ewwwio_debug_message( 'matched bucket name in ' . $urlinfo['host'] );
-	ewww_image_optimizer_debug_log();
 			return array( 'bucket' => S3_IMAGE_OPTIMIZER_BUCKET, 'path' => $urlinfo['path'] );
 		}
 		if ( strpos( $urlinfo['path'], S3_IMAGE_OPTIMIZER_BUCKET ) !== false ) {
 			$path = str_replace( '/' . S3_IMAGE_OPTIMIZER_BUCKET, '', $urlinfo['path'] );
-	ewwwio_debug_message( 'matched bucket name in path: ' . $urlinfo['path'] );
-	ewww_image_optimizer_debug_log();
 			return array( 'bucket' => S3_IMAGE_OPTIMIZER_BUCKET, 'path' => $path );
 		}
 	}
@@ -1062,12 +1055,10 @@ function s3io_get_args_from_url( $url ) {
 	$buckets = $client->listBuckets();
 	foreach ( $buckets['Buckets'] as $aws_bucket ) {
 		if ( strpos( $urlinfo['host'], $aws_bucket['Name'] ) !== false ) {
-	ewww_image_optimizer_debug_log();
 			return array( 'bucket' => $aws_bucket['Name'], 'path' => $urlinfo['path'] );
 		}
 		if ( strpos( $urlinfo['path'], $aws_bucket['Name'] ) !== false ) {
 			$path = str_replace( '/' . $aws_bucket['Name'], '', $urlinfo['path'] );
-	ewww_image_optimizer_debug_log();
 			return array( 'bucket' => $aws_bucket['Name'], 'path' => $path );
 		}
 	}
@@ -1075,30 +1066,22 @@ function s3io_get_args_from_url( $url ) {
 	// doing it in a separate foreach, in case there are performance implications of switching the region in accounts with lots of buckets
 	$key = ltrim( $urlinfo['path'], '/' );
 	foreach ( $buckets['Buckets'] as $aws_bucket ) {
-		ewwwio_debug_message( 'checking bucket: ' . $aws_bucket['Name'] );
-		ewwwio_debug_message( print_r( $aws_bucket, true ) );
 		$location = $client->getBucketLocation( array(
 			'Bucket' => $aws_bucket['Name'],
 		) );
 		if ( ! empty( $location['Location'] ) ) {
-			ewwwio_debug_message( 'setting location to ' . $location['Location'] );
 			$client->setRegion( $location['Location'] );
 		} else {
 			$client->setRegion( 'us-east-1' );
 		}
-		ewwwio_debug_message( "looking for $key" );
 		try {
 			$exists = $client->headObject( array( 'Bucket' => $aws_bucket['Name'], 'Key' => $key ) );
 		} catch( Exception $e ) {
-			ewwwio_debug_message( $e->getMessage() );
 		}
-		ewwwio_debug_message( print_r( $exists, true ) );
 		if ( $exists ) {
-	ewww_image_optimizer_debug_log();
 			return array( 'bucket' => $aws_bucket['Name'], 'path' => $urlinfo['path'] );
 		}
 	}
-	ewww_image_optimizer_debug_log();
 	return false;
 }
 
@@ -1108,7 +1091,6 @@ add_action( 'wp_ajax_s3io_query_table', 's3io_table' );
 add_action( 'wp_ajax_s3io_table_count', 's3io_table_count_optimized' );
 add_action( 'wp_ajax_s3io_table_remove', 's3io_table_remove' );
 add_action( 'wp_ajax_s3io_bulk_init', 's3io_bulk_init' );
-//add_action( 'wp_ajax_s3io_bulk_filename', 's3io_bulk_filename' );
 add_action( 'wp_ajax_s3io_bulk_loop', 's3io_bulk_loop' );
 add_action( 'wp_ajax_s3io_bulk_cleanup', 's3io_bulk_cleanup' );
 add_action( 'wp_ajax_s3io_url_images_loop', 's3io_url_loop' );
