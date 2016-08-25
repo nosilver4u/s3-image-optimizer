@@ -4,12 +4,12 @@ Plugin Name: S3 Image Optimizer
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
 Text Domain: s3-image-optimizer
-Version: .8
+Version: 1.0
 Author URI: https://ewww.io/
 */
 
 // Constants
-define( 'S3IO_VERSION', '.81' );
+define( 'S3IO_VERSION', '1.0' );
 // this is the full path of the plugin file itself
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // this is the path of the plugin file relative to the plugins/ folder
@@ -76,7 +76,7 @@ function s3io_admin_init() {
 	}
 	$license_key = trim( get_option( 's3io_license_key' ) );
 	$edd_updater = new EDD_SL_Plugin_Updater( S3IO_SL_STORE_URL, __FILE__, array(
-		'version'	=> '.8',
+		'version'	=> '1.0',
 		'license'	=> $license_key,
 		'item_name'	=> S3IO_SL_ITEM_NAME,
 		'author'	=> 'Shane Bishop',
@@ -254,7 +254,7 @@ function s3io_options_page() {
 						}
 					?></textarea>
 					<p class='description'>
-					<?php if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && ! empty( S3_IMAGE_OPTIMIZER_BUCKET ) ) {
+					<?php if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && S3_IMAGE_OPTIMIZER_BUCKET ) {
 						esc_html_e( 'You have currently defined the bucket constant (S3_IMAGE_OPTIMIZER_BUCKET) which will override any buckets entered above:', 's3-image-optimizer' );
 						echo ' ' . esc_html( S3_IMAGE_OPTIMIZER_BUCKET ) . '<br><br>';
 					}
@@ -413,7 +413,7 @@ function s3io_image_scan( $verbose = false ) {
 	$images = array();
 	$image_count = 0;
 //	$start = microtime( true );
-	if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && ! empty( S3_IMAGE_OPTIMIZER_BUCKET ) ) {
+	if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && S3_IMAGE_OPTIMIZER_BUCKET ) {
 		$bucket_list = array( S3_IMAGE_OPTIMIZER_BUCKET );
 	} else {
 		$bucket_list = get_option( 's3io_bucketlist' );
@@ -438,8 +438,8 @@ function s3io_image_scan( $verbose = false ) {
 			$client->setRegion( 'us-east-1' );
 		}
 		$iterator_args = array(	'Bucket' => $bucket );
-		if ( defined( 'S3_IMAGE_OPTIMIZER_FOLDER' ) && ! empty( S3_IMAGE_OPTIMIZER_FOLDER ) ) {
-			$iterator_args['Prefix'] = S3_IMAGE_OPTIMIZER_FOLDER;
+		if ( defined( 'S3_IMAGE_OPTIMIZER_FOLDER' ) && S3_IMAGE_OPTIMIZER_FOLDER ) {
+			$iterator_args['Prefix'] = ltrim( S3_IMAGE_OPTIMIZER_FOLDER, '/' );
 		}
 
 		// in case you need to modify the arguments to the $client->getIterator() call before they are used
@@ -1040,7 +1040,7 @@ function s3io_get_args_from_url( $url ) {
 	if ( ! $urlinfo ) {
 		return false;
 	}
-	if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && ! empty( S3_IMAGE_OPTIMIZER_BUCKET ) ) {
+	if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && S3_IMAGE_OPTIMIZER_BUCKET ) {
 		if ( strpos( $urlinfo['host'], S3_IMAGE_OPTIMIZER_BUCKET ) !== false ) {
 			return array( 'bucket' => S3_IMAGE_OPTIMIZER_BUCKET, 'path' => $urlinfo['path'] );
 		}

@@ -3,7 +3,7 @@ Contributors: nosilver4u
 Tags: amazon, s3, cloudfront, image, optimize, optimization, photo, picture, seo, compression, wp-cli 
 Requires at least: 4.4
 Tested up to: 4.6
-Stable tag: .8
+Stable tag: 1.0
 License: GPLv3
 
 Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
@@ -21,7 +21,13 @@ It currently uses a web-based optimization process, but a wp-cli interface is on
 1. Follow the instructions to setup your AWS access keys.
 1. Install this plugin via Wordpress' built-in plugin installer.
 1. Enter S3 bucket names under Settings and S3 Image Optimizer.
-1. Go to Media and S3 Image Optimizer to start optimizing your bucket.
+1. As noted on the settings page, you can also define constants to restrict S3 IO to a specific bucket and/or sub-folder: S3_IMAGE_OPTIMIZER_BUCKET and S3_IMAGE_OPTIMIZER_FOLDER
+
+= Usage =
+
+* Go to Media and S3 Bulk Optimizer to start optimizing your bucket.
+* Use Media->S3 URL Optimizer to optimize specific images by their url/address.
+* Use WP-CLI to optimize your buckets from the command line, especially useful for large buckets or scheduling bulk optimization:  wp-cli help s3io optimize
 
 == Frequently Asked Questions ==
 
@@ -31,12 +37,17 @@ Start asking, and then we'll see what needs answering: https://wordpress.org/sup
 
 == Changelog ==
 
+= 1.0 =
+* fixed issues with checking that a constant is empty in PHP <5.5
+* make sure to remove the leading slash from S3_IMAGE_OPTIMIZER_FOLDER
+
 = .9 =
 * added WP-CLI interface: 'wp-cli help s3io optimize' for more information
 * added constants to define bucket and sub-folder to optimize: S3_IMAGE_OPTIMIZER_BUCKET and S3_IMAGE_OPTIMIZER_FOLDER
 * fixed memory overload when running bulk operation with large s3 buckets
 * ported bulk optimizer improvements from core EWWW IO: renewable nonce for longer running operations, show last optimized image on top, collapsible and draggable ui from WP core, less AJAX requests
 * added escaping for all html to prevent any code injection from translations or database, and use JS for sleeping to avoid DOS by sleep timer
+* added S3 URL Optimizer to optimize individual images by their URL
 
 = .8 =
 * fixed fatal error when bucket/account requires v4 authentication
