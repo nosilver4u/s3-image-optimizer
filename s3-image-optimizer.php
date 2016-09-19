@@ -4,12 +4,12 @@ Plugin Name: S3 Image Optimizer
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
 Text Domain: s3-image-optimizer
-Version: 1.0
+Version: 1.1
 Author URI: https://ewww.io/
 */
 
 // Constants
-define( 'S3IO_VERSION', '1.0' );
+define( 'S3IO_VERSION', '1.1' );
 // this is the full path of the plugin file itself
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // this is the path of the plugin file relative to the plugins/ folder
@@ -76,7 +76,7 @@ function s3io_admin_init() {
 	}
 	$license_key = trim( get_option( 's3io_license_key' ) );
 	$edd_updater = new EDD_SL_Plugin_Updater( S3IO_SL_STORE_URL, __FILE__, array(
-		'version'	=> '1.0',
+		'version'	=> '1.1',
 		'license'	=> $license_key,
 		'item_name'	=> S3IO_SL_ITEM_NAME,
 		'author'	=> 'Shane Bishop',
@@ -726,28 +726,52 @@ function s3io_table_remove() {
 
 // receives a path, results, optimized size, and an original size to insert into ewwwwio_images table
 // if this is a $new image, copy the result stored in the database
-function s3io_table_update( $path, $opt_size, $orig_size, $results_msg ) {
+function s3io_table_update( $path, $opt_size, $orig_size, $results_msg, $id = false, $bucket = '' ) {
 	global $wpdb;
-	$query = $wpdb->prepare("SELECT id,orig_size,results,path FROM $wpdb->s3io_images WHERE path = %s", $path);
-	$optimized_query = $wpdb->get_results($query, ARRAY_A);
-	if ( ! empty( $optimized_query ) ) {
-		foreach ( $optimized_query as $image ) {
-			if ( $image['path'] == $path ) {
-				$already_optimized = $image;
+	$opt_size = (int) $opt_size;
+	$orig_size = (int) $orig_size;
+	$id = $id ? (int) $id : (bool) $id;
+	if ( $opt_size >= $orig_size ) {
+		$results_msg = __( 'No savings', 's3-image-optimizer' );
+		ewwwio_debug_message( 's3io: no savings' );
+		if ( $id ) {
+			ewwwio_debug_message( "s3io: looking for $id" );
+			$optimized_query = $wpdb->get_row("SELECT id,orig_size,results,path FROM $wpdb->s3io_images WHERE id = $id", ARRAY_A);
+			if ( $optimized_query && ! empty( $optimized_query['results'] ) ) {
+				ewwwio_debug_message( "s3io: found already optimized $id" );
+				return $optimized_query['results'];
+			}
+			// otherwise we need to store some stuff
+			// store info on the current image for future reference
+			$updated = $wpdb->update( $wpdb->s3io_images,
+				array(
+					'image_size' => $opt_size,
+					'results' => $results_msg,
+				),
+				array(
+					'id' => $id,
+				),
+				array(
+					'%d',
+					'%s',
+				),
+				array(
+					'%d',
+				)
+			);
+			if ( $updated ) {
+				ewwwio_debug_message( "s3io: updated $id" );
+				$wpdb->flush();
+				return $results_msg;
 			}
 		}
-	}
-	if ( ! empty( $already_optimized['results'] ) && $opt_size === $orig_size ) {
-		$results_msg = $already_optimized['results'];
-	} elseif ( $opt_size >= $orig_size ) {
-		$results_msg = __( 'No savings', 's3-image-optimizer' );
-	} elseif ( empty( $results_msg ) ) {
+	} else {
 		// calculate how much space was saved
-		$savings = intval( $orig_size ) - intval( $opt_size );
+		$savings = $orig_size - $opt_size;
 		// convert it to human readable format
 		$savings_str = size_format( $savings, 1 );
 		// replace spaces and extra decimals with proper html entity encoding
-		$savings_str = preg_replace( '/\.0 B /', ' B', $savings_str );
+		$savings_str = str_replace( '.0 B ', ' B', $savings_str );
 		$savings_str = str_replace( ' ', '&nbsp;', $savings_str );
 		// determine the percentage savings
 		$percent = 100 - ( 100 * ( $opt_size / $orig_size ) );
@@ -756,16 +780,91 @@ function s3io_table_update( $path, $opt_size, $orig_size, $results_msg ) {
 			$percent,
 			$savings_str
 		);
+		if ( $id ) {
+			ewwwio_debug_message( "s3io: updating $id" );
+			// store info on the current image for future reference
+			$updated = $wpdb->update( $wpdb->s3io_images,
+				array(
+					'image_size' => $opt_size,
+					'results' => $results_msg,
+				),
+				array(
+					'id' => $id,
+				),
+				array(
+					'%d',
+					'%s',
+				),
+				array(
+					'%d',
+				)
+			);
+			if ( $updated ) {
+				ewwwio_debug_message( "s3io: updated $id" );
+				$wpdb->flush();
+				return $results_msg;
+			}
+		}
+	}
+	ewwwio_debug_message( "s3io: falling back to search by $path" );
+	$query = $wpdb->prepare("SELECT id,orig_size,results,path FROM $wpdb->s3io_images WHERE path = %s", $path);
+	$optimized_query = $wpdb->get_results( $query, ARRAY_A );
+	if ( ! empty( $optimized_query ) ) {
+		ewwwio_debug_message( 's3io: found results by path, checking...' );
+		foreach ( $optimized_query as $image ) {
+			ewwwio_debug_message( $image['path'] );
+			if ( $image['path'] == $path ) {
+				ewwwio_debug_message( 'found a match' );
+				$already_optimized = $image;
+			}
+		}
+	}
+	if ( ! empty( $already_optimized['results'] ) && $opt_size === $orig_size ) {
+		ewwwio_debug_message( 'returning results without update' );
+		return $already_optimized['results'];
 	}
 	// store info on the current image for future reference
-	$wpdb->update( $wpdb->s3io_images,
+	$updated = $wpdb->update( $wpdb->s3io_images,
 		array(
 			'image_size' => $opt_size,
 			'results' => $results_msg,
 		),
 		array(
 			'id' => $already_optimized['id'],
-		));
+		),
+		array(
+			'%d',
+			'%s',
+		),
+		array(
+			'%d',
+		)
+	);
+	if ( $updated ) {
+		ewwwio_debug_message( "updated results for $path" );
+		$wpdb->flush();
+		return $results_msg;
+	}
+	ewwwio_debug_message( 'no existing records found, inserting new one' );
+	$inserted = $wpdb->insert( $wpdb->s3io_images,
+		array(
+			'bucket' => $bucket,
+			'path' => $path,
+			'results' => $results_msg,
+			'image_size' => $opt_size,
+			'orig_size' => $orig_size,
+		),
+		array(
+			'%s',
+			'%s',
+			'%s',
+			'%d',
+			'%d',
+		)
+	);
+	if ( $inserted ) {
+		ewwwio_debug_message( 'successful INSERT' );
+	}
 	$wpdb->flush();
 	return $results_msg;
 }
@@ -886,7 +985,7 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 		}
 	}
 	unlink( $filename );
-	s3io_table_update( $image_record['path'], $new_size, $fetch_result['ContentLength'], $results[1] );
+	s3io_table_update( $image_record['path'], $new_size, $fetch_result['ContentLength'], $results[1], $image_record['id'] );
 	// make sure ewww doesn't keep a record of these files
 	$query = $wpdb->prepare( "DELETE FROM $wpdb->ewwwio_images WHERE path = %s", $filename );
 	$wpdb->query( $query );
@@ -1016,7 +1115,7 @@ function s3io_url_loop() {
 		) );
 	}
 	unlink( $filename );
-	s3io_table_update( $url_args['path'], $new_size, $fetch_result['ContentLength'], $results[1] );
+	s3io_table_update( $url_args['path'], $new_size, $fetch_result['ContentLength'], $results[1], false, $url_args['bucket'] );
 	// make sure ewww doesn't keep a record of these files
 	global $wpdb;
 	$query = $wpdb->prepare( "DELETE FROM $wpdb->ewwwio_images WHERE path = %s", $filename );
