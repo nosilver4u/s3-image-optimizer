@@ -4,12 +4,13 @@ Plugin Name: S3 Image Optimizer
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
 Text Domain: s3-image-optimizer
-Version: 1.1
+Version: 1.1.1
 Author URI: https://ewww.io/
 */
 
+//TODO: catch permissions error when IAM user doesn't have permission to list buckets, and just let them manually enter it
 // Constants
-define( 'S3IO_VERSION', '1.1' );
+define( 'S3IO_VERSION', '1.11' );
 // this is the full path of the plugin file itself
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // this is the path of the plugin file relative to the plugins/ folder
@@ -76,7 +77,7 @@ function s3io_admin_init() {
 	}
 	$license_key = trim( get_option( 's3io_license_key' ) );
 	$edd_updater = new EDD_SL_Plugin_Updater( S3IO_SL_STORE_URL, __FILE__, array(
-		'version'	=> '1.1',
+		'version'	=> '1.1.1',
 		'license'	=> $license_key,
 		'item_name'	=> S3IO_SL_ITEM_NAME,
 		'author'	=> 'Shane Bishop',
@@ -107,7 +108,7 @@ function s3io_install_table() {
 		id int(14) NOT NULL AUTO_INCREMENT,
 		bucket VARCHAR(100),
 		path text NOT NULL,
-		results VARCHAR(55) NOT NULL,
+		results VARCHAR(75) NOT NULL,
 		image_size int(10) unsigned,
 		orig_size int(10) unsigned,
 		UNIQUE KEY id (id),
@@ -221,7 +222,12 @@ function s3io_options_page() {
 		global $amazon_web_services;
 		$aws = $amazon_web_services->get_client();
 		$client = $aws->get( 'S3' );
-		$buckets = $client->listBuckets();
+		try {
+			$buckets = $client->listBuckets();
+		} catch ( Exception $e ) {
+                        $buckets = new WP_Error( 'exception', $e->getMessage() );
+                }
+
 		$license_status = get_option( 's3io_license_status' );
 //	if ( get_option( 's3io_eucentral' ) ) {
 ?>
@@ -244,7 +250,11 @@ function s3io_options_page() {
 <?php			} ?>
 					</td></tr>
 <?php		} ?>
-					<tr><th><label for='s3io_bucketlist'><?php esc_html_e( 'Buckets to optimize', 's3-image-optimizer' ) ?></label></th><td><?php esc_html_e( 'One bucket per line, must match one of the buckets listed below. If empty, all available buckets will be optimized.', 's3-image-optimizer' ) ?><br>
+					<tr><th><label for='s3io_bucketlist'><?php esc_html_e( 'Buckets to optimize', 's3-image-optimizer' ) ?></label></th><td>
+<?php						if ( ! is_wp_error( $buckets ) ) {
+							esc_html_e( 'One bucket per line, must match one of the buckets listed below. If empty, all available buckets will be optimized.', 's3-image-optimizer' );
+						}
+					?><br>
 					<textarea id='s3io_bucketlist' name='s3io_bucketlist' rows='3' cols='40'>
 <?php 						$bucket_list = get_option( 's3io_bucketlist' );
 						if ( ! empty( $bucket_list ) ) {
@@ -258,15 +268,19 @@ function s3io_options_page() {
 						esc_html_e( 'You have currently defined the bucket constant (S3_IMAGE_OPTIMIZER_BUCKET) which will override any buckets entered above:', 's3-image-optimizer' );
 						echo ' ' . esc_html( S3_IMAGE_OPTIMIZER_BUCKET ) . '<br><br>';
 					}
-					esc_html_e( 'These are the buckets that we have access to optimize:', 's3-image-optimizer' ) ?><br>
-<?php					foreach ( $buckets['Buckets'] as $bucket ) {
-						echo "{$bucket['Name']}<br>\n";
+					if ( is_wp_error( $buckets ) ) {
+						printf( esc_html__( 'Could not list buckets: %s', 's3-image-optimizer' ), $buckets->get_error_message() );
+					} else {
+						esc_html_e( 'These are the buckets that we have access to optimize:', 's3-image-optimizer' ) ?><br>
+<?php						foreach ( $buckets['Buckets'] as $bucket ) {
+							echo "{$bucket['Name']}<br>\n";
 		//echo "<br>";
 		//$location = $client->getBucketLocation( array(
 		//	'Bucket' => $bucket['Name'],
 		//) );
 		//print_r( $location );
 		//echo "<br>";
+						}
 					}?>
 					</p>
 					</td></tr>
@@ -410,6 +424,8 @@ function s3io_url_script( $hook ) {
 // scan buckets for images and store in database
 function s3io_image_scan( $verbose = false ) {
 	global $wpdb;
+	global $s3io_errors;
+	$s3io_errors = array();
 	$images = array();
 	$image_count = 0;
 //	$start = microtime( true );
@@ -423,19 +439,39 @@ function s3io_image_scan( $verbose = false ) {
 	$client = $aws->get( 'S3' );
 	if ( empty( $bucket_list ) ) {
 		$bucket_list = array();
-		$buckets = $client->listBuckets();
-		foreach ( $buckets['Buckets'] as $aws_bucket ) {
-			$bucket_list[] = $aws_bucket['Name'];
+		try {
+			$buckets = $client->listBuckets();
+		} catch ( Exception $e ) {
+                        $buckets = new WP_Error( 'exception', $e->getMessage() );
+		}
+		if ( is_wp_error( $buckets ) ) {
+			$s3io_errors[] = sprintf( esc_html__( 'Could not list buckets: %s', 's3-image-optimizer' ), $buckets->get_error_message() );
+		} else {
+			foreach ( $buckets['Buckets'] as $aws_bucket ) {
+				$bucket_list[] = $aws_bucket['Name'];
+			}
 		}
 	}
 	foreach ( $bucket_list as $bucket ) {
-		$location = $client->getBucketLocation( array(
-			'Bucket' => $bucket,
-		) );
-		if ( ! empty( $location['Location'] ) ) {
-			$client->setRegion( $location['Location'] );
+		try {
+			$location = $client->getBucketLocation( array(
+				'Bucket' => $bucket,
+			) );
+		} catch ( Exception $e ) {
+                        $location = new WP_Error( 'exception', $e->getMessage() );
+		}
+		if ( is_wp_error( $location ) ) {
+			$s3io_errors[] = sprintf( esc_html__( 'Could not get bucket location for %s, error: %s. Will assume us-east-1 region.', 's3-image-optimizer' ), $bucket, $location->get_error_message() );
 		} else {
-			$client->setRegion( 'us-east-1' );
+			try {
+				if ( ! empty( $location['Location'] ) ) {
+					$client->setRegion( $location['Location'] );
+				} else {
+					$client->setRegion( 'us-east-1' );
+				}
+			} catch ( Exception $e ) {
+                        	$s3io_errors[] = sprintf( esc_html__( 'Could not set region for %s, error: %s. Will assume us-east-1 region.', 's3-image-optimizer' ), $bucket, $e->getMessage() );
+			}
 		}
 		$iterator_args = array(	'Bucket' => $bucket );
 		if ( defined( 'S3_IMAGE_OPTIMIZER_FOLDER' ) && S3_IMAGE_OPTIMIZER_FOLDER ) {
@@ -537,6 +573,7 @@ function s3io_url_display() {
 
 function s3io_bulk_display() {
 	global $wpdb;
+	global $s3io_errors;
 	// Retrieve the value of the 'aux resume' option and set the button text for the form to use
 	$s3io_resume = get_option( 's3io_resume' );
 	if ( empty( $s3io_resume ) ) {
@@ -560,6 +597,11 @@ function s3io_bulk_display() {
 	?>
 	<div class="wrap">
 	<h1><?php esc_html_e( 'S3 Bulk Optimizer', 's3-image-optimizer' ); ?></h1>
+<?php		if ( ! empty( $s3io_errors ) && is_array( $s3io_errors ) ) {
+			foreach ( $s3io_errors as $s3io_error ) {
+				echo "<p style='color: red'><b>$s3io_error</b></p>";
+			}
+		} ?>
 		<div id="s3io-bulk-loading">
 			<p id="s3io-loading" class="s3io-bulk-info" style="display:none">&nbsp;<img src="<?php echo $loading_image; ?>" /></p>
 		</div>
@@ -923,10 +965,14 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 	global $amazon_web_services;
 	$aws = $amazon_web_services->get_client();
 	$client = $aws->get( 'S3' );
-	$location = $client->getBucketLocation( array(
-		'Bucket' => $image_record['bucket'],
-	) );
-	if ( ! empty( $location['Location'] ) ) {
+	try {
+		$location = $client->getBucketLocation( array(
+			'Bucket' => $image_record['bucket'],
+		) );
+	} catch ( Exception $e ) {
+		$location = new WP_Error( 'exception', $e->getMessage() );
+	}
+	if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 		$client->setRegion( $location['Location'] );
 	}
 	$filename = $upload_dir . $image_record['path'];
@@ -1070,10 +1116,14 @@ function s3io_url_loop() {
 	global $amazon_web_services;
 	$aws = $amazon_web_services->get_client();
 	$client = $aws->get( 'S3' );
-	$location = $client->getBucketLocation( array(
-		'Bucket' => $url_args['bucket'],
-	) );
-	if ( ! empty( $location['Location'] ) ) {
+	try {
+		$location = $client->getBucketLocation( array(
+			'Bucket' => $url_args['bucket'],
+		) );
+	} catch ( Exception $e ) {
+		$location = new WP_Error( 'exception', $e->getMessage() );
+	}
+	if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 		$client->setRegion( $location['Location'] );
 	}
 	$filename = $upload_dir . $url_args['path'];
