@@ -225,8 +225,8 @@ function s3io_options_page() {
 		try {
 			$buckets = $client->listBuckets();
 		} catch ( Exception $e ) {
-                        $buckets = new WP_Error( 'exception', $e->getMessage() );
-                }
+			$buckets = new WP_Error( 'exception', $e->getMessage() );
+		}
 
 		$license_status = get_option( 's3io_license_status' );
 //	if ( get_option( 's3io_eucentral' ) ) {
@@ -305,14 +305,27 @@ function s3io_bucketlist_sanitize( $input ) {
 	global $amazon_web_services;
 	$aws = $amazon_web_services->get_client();
 	$client = $aws->get( 'S3' );
-	$buckets = $client->listBuckets();
+	try {
+		$buckets = $client->listBuckets();
+	} catch ( Exception $e ) {
+		$buckets = new WP_Error( 'exception', $e->getMessage() );
+	}
 	$bucket_array = array();
 	$input_buckets = explode("\n", $input);
 	foreach ( $input_buckets as $input_bucket) {
 		$input_bucket = trim( $input_bucket );
-		foreach ( $buckets['Buckets'] as $bucket ) {
-			if ( $input_bucket == $bucket['Name'] ) {
+		if ( is_wp_error( $buckets ) ) {
+			if ( strlen( $input_bucket ) < 3 || strlen( $input_bucket ) > 63 ) {
+				continue;
+			}
+			if ( preg_match( '/^([a-z0-9]+(-[a-z0-9]+)*\.*)+/', $input_bucket ) ) {
 				$bucket_array[] = $input_bucket;
+			}
+		} else {
+			foreach ( $buckets['Buckets'] as $bucket ) {
+				if ( $input_bucket == $bucket['Name'] ) {
+					$bucket_array[] = $input_bucket;
+				}
 			}
 		}
 	}
@@ -460,15 +473,19 @@ function s3io_image_scan( $verbose = false ) {
 		} catch ( Exception $e ) {
                         $location = new WP_Error( 'exception', $e->getMessage() );
 		}
-		if ( is_wp_error( $location ) ) {
-			$s3io_errors[] = sprintf( esc_html__( 'Could not get bucket location for %s, error: %s. Will assume us-east-1 region.', 's3-image-optimizer' ), $bucket, $location->get_error_message() );
+		if ( is_wp_error( $location ) && ( ! defined( 'S3_IMAGE_OPTIMIZER_REGION' ) || empty( S3_IMAGE_OPTIMIZER_REGION ) ) ) {
+				$s3io_errors[] = sprintf( esc_html__( 'Could not get bucket location for %s, error: %s. Will assume us-east-1 region for all buckets. You may set the region manually using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php.', 's3-image-optimizer' ), $bucket, $location->get_error_message() );
+				$region = 'us-east-1';
 		} else {
+			if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
+				$region = $location['Location'];
+			} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && ! empty( S3_IMAGE_OPTIMIZER_REGION ) ) {
+				$region = S3_IMAGE_OPTIMIZER_REGION;
+			} else {
+				$region = 'us-east-1';
+			}
 			try {
-				if ( ! empty( $location['Location'] ) ) {
-					$client->setRegion( $location['Location'] );
-				} else {
-					$client->setRegion( 'us-east-1' );
-				}
+				$client->setRegion( $region );
 			} catch ( Exception $e ) {
                         	$s3io_errors[] = sprintf( esc_html__( 'Could not set region for %s, error: %s. Will assume us-east-1 region.', 's3-image-optimizer' ), $bucket, $e->getMessage() );
 			}
@@ -973,7 +990,16 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 		$location = new WP_Error( 'exception', $e->getMessage() );
 	}
 	if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
-		$client->setRegion( $location['Location'] );
+		$region = $location['Location'];
+	} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && ! empty( S3_IMAGE_OPTIMIZER_REGION ) ) {
+		$region = S3_IMAGE_OPTIMIZER_REGION;
+	} else {
+		$region = 'us-east-1';
+	}
+	try {
+		$client->setRegion( $region );
+	} catch ( Exception $e ) {
+//		$s3io_errors[] = sprintf( esc_html__( 'Could not set region for %s, error: %s. Will assume us-east-1 region.', 's3-image-optimizer' ), $bucket, $e->getMessage() );
 	}
 	$filename = $upload_dir . $image_record['path'];
 	$full_dir = dirname( $filename );
@@ -1124,7 +1150,15 @@ function s3io_url_loop() {
 		$location = new WP_Error( 'exception', $e->getMessage() );
 	}
 	if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
-		$client->setRegion( $location['Location'] );
+		$region = $location['Location'];
+	} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && ! empty( S3_IMAGE_OPTIMIZER_REGION ) ) {
+		$region = S3_IMAGE_OPTIMIZER_REGION;
+	} else {
+		$region = 'us-east-1';
+	}
+	try {
+		$client->setRegion( $region );
+	} catch ( Exception $e ) {
 	}
 	$filename = $upload_dir . $url_args['path'];
 	$full_dir = dirname( $filename );
@@ -1201,34 +1235,65 @@ function s3io_get_args_from_url( $url ) {
 	global $amazon_web_services;
 	$aws = $amazon_web_services->get_client();
 	$client = $aws->get( 'S3' );
-	$buckets = $client->listBuckets();
-	foreach ( $buckets['Buckets'] as $aws_bucket ) {
-		if ( strpos( $urlinfo['host'], $aws_bucket['Name'] ) !== false ) {
-			return array( 'bucket' => $aws_bucket['Name'], 'path' => $urlinfo['path'] );
-		}
-		if ( strpos( $urlinfo['path'], $aws_bucket['Name'] ) !== false ) {
-			$path = str_replace( '/' . $aws_bucket['Name'], '', $urlinfo['path'] );
-			return array( 'bucket' => $aws_bucket['Name'], 'path' => $path );
+	try {
+		$buckets = $client->listBuckets();
+	} catch ( Exception $e ) {
+		$buckets = new WP_Error( 'exception', $e->getMessage() );
+	}
+
+	// if retrieving buckets from AWS failed, then we use the bucketlist option, otherwise we build the bucket list from AWS
+	if ( is_wp_error( $buckets ) ) {
+		$bucket_list = get_option( 's3io_bucketlist' );
+	} else {
+		$bucket_list = array();
+		foreach ( $buckets['Buckets'] as $aws_bucket ) {
+			$bucket_list[] = $aws_bucket['Name'];
 		}
 	}
+
+	// if we don't have a list of buckets, we can't do much more here
+	if ( empty( $bucket_list ) || ! is_array( $bucket_list ) ) {
+		return false;
+	}
+
+	foreach ( $bucket_list as $aws_bucket ) {
+		if ( strpos( $urlinfo['host'], $aws_bucket ) !== false ) {
+			return array( 'bucket' => $aws_bucket, 'path' => $urlinfo['path'] );
+		}
+		if ( strpos( $urlinfo['path'], $aws_bucket ) !== false ) {
+			$path = str_replace( '/' . $aws_bucket, '', $urlinfo['path'] );
+			return array( 'bucket' => $aws_bucket, 'path' => $path );
+		}
+	}
+	
 	// otherwise, we must have a custom domain, so lets do a quick search for the attachment in all buckets
 	// doing it in a separate foreach, in case there are performance implications of switching the region in accounts with lots of buckets
 	$key = ltrim( $urlinfo['path'], '/' );
-	foreach ( $buckets['Buckets'] as $aws_bucket ) {
-		$location = $client->getBucketLocation( array(
-			'Bucket' => $aws_bucket['Name'],
-		) );
-		if ( ! empty( $location['Location'] ) ) {
-			$client->setRegion( $location['Location'] );
+	foreach ( $bucket_list as $aws_bucket ) {
+		try {
+			$location = $client->getBucketLocation( array(
+				'Bucket' => $aws_bucket,
+			) );
+		} catch ( Exception $e ) {
+                        $location = new WP_Error( 'exception', $e->getMessage() );
+		}
+		if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
+			$region = $location['Location'];
+		} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && ! empty( S3_IMAGE_OPTIMIZER_REGION ) ) {
+			$region = S3_IMAGE_OPTIMIZER_REGION;
 		} else {
-			$client->setRegion( 'us-east-1' );
+			$region = 'us-east-1';
 		}
 		try {
-			$exists = $client->headObject( array( 'Bucket' => $aws_bucket['Name'], 'Key' => $key ) );
+			$client->setRegion( $region );
+		} catch ( Exception $e ) {
+		}
+		try {
+			$exists = $client->headObject( array( 'Bucket' => $aws_bucket, 'Key' => $key ) );
 		} catch( Exception $e ) {
 		}
 		if ( $exists ) {
-			return array( 'bucket' => $aws_bucket['Name'], 'path' => $urlinfo['path'] );
+			return array( 'bucket' => $aws_bucket, 'path' => $urlinfo['path'] );
 		}
 	}
 	return false;
