@@ -4,13 +4,13 @@ Plugin Name: S3 Image Optimizer
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
 Text Domain: s3-image-optimizer
-Version: 1.1.1
+Version: 1.2
 Author URI: https://ewww.io/
 */
 
 //TODO: catch permissions error when IAM user doesn't have permission to list buckets, and just let them manually enter it
 // Constants
-define( 'S3IO_VERSION', '1.11' );
+define( 'S3IO_VERSION', '1.2' );
 // this is the full path of the plugin file itself
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // this is the path of the plugin file relative to the plugins/ folder
@@ -77,7 +77,7 @@ function s3io_admin_init() {
 	}
 	$license_key = trim( get_option( 's3io_license_key' ) );
 	$edd_updater = new EDD_SL_Plugin_Updater( S3IO_SL_STORE_URL, __FILE__, array(
-		'version'	=> '1.1.1',
+		'version'	=> '1.2',
 		'license'	=> $license_key,
 		'item_name'	=> S3IO_SL_ITEM_NAME,
 		'author'	=> 'Shane Bishop',
