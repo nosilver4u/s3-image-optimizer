@@ -37,6 +37,11 @@ Start asking, and then we'll see what needs answering: https://wordpress.org/sup
 
 == Changelog ==
 
+= 1.2 =
+* catch fatal errors when S3 permissions are not sufficient
+* upgrade plugin updater class
+* added S3_IMAGE_OPTIMIZER_REGION to set region manually when permissions are too restrictive
+
 = 1.1 =
 * table updates more efficient and robust, searches by id first, and only by path if that fails
 * fixed potential issue with images optimized by url not being stored in database
