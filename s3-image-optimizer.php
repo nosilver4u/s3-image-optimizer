@@ -4,13 +4,12 @@ Plugin Name: S3 Image Optimizer
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
 Text Domain: s3-image-optimizer
-Version: 1.2
+Version: 1.3
 Author URI: https://ewww.io/
 */
 
-//TODO: catch permissions error when IAM user doesn't have permission to list buckets, and just let them manually enter it
 // Constants
-define( 'S3IO_VERSION', '1.2' );
+define( 'S3IO_VERSION', '1.3' );
 // this is the full path of the plugin file itself
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // this is the path of the plugin file relative to the plugins/ folder
@@ -77,7 +76,7 @@ function s3io_admin_init() {
 	}
 	$license_key = trim( get_option( 's3io_license_key' ) );
 	$edd_updater = new EDD_SL_Plugin_Updater( S3IO_SL_STORE_URL, __FILE__, array(
-		'version'	=> '1.2',
+		'version'	=> '1.3',
 		'license'	=> $license_key,
 		'item_name'	=> S3IO_SL_ITEM_NAME,
 		'author'	=> 'Shane Bishop',
@@ -229,7 +228,6 @@ function s3io_options_page() {
 		}
 
 		$license_status = get_option( 's3io_license_status' );
-//	if ( get_option( 's3io_eucentral' ) ) {
 ?>
 		<div class='wrap'>
 			<h1><?php esc_html_e( 'S3 Image Optimizer', 's3-image-optimizer' ); ?></h1>
@@ -274,12 +272,6 @@ function s3io_options_page() {
 						esc_html_e( 'These are the buckets that we have access to optimize:', 's3-image-optimizer' ) ?><br>
 <?php						foreach ( $buckets['Buckets'] as $bucket ) {
 							echo "{$bucket['Name']}<br>\n";
-		//echo "<br>";
-		//$location = $client->getBucketLocation( array(
-		//	'Bucket' => $bucket['Name'],
-		//) );
-		//print_r( $location );
-		//echo "<br>";
 						}
 					}?>
 					</p>
@@ -473,13 +465,13 @@ function s3io_image_scan( $verbose = false ) {
 		} catch ( Exception $e ) {
                         $location = new WP_Error( 'exception', $e->getMessage() );
 		}
-		if ( is_wp_error( $location ) && ( ! defined( 'S3_IMAGE_OPTIMIZER_REGION' ) || empty( S3_IMAGE_OPTIMIZER_REGION ) ) ) {
+		if ( is_wp_error( $location ) && ( ! defined( 'S3_IMAGE_OPTIMIZER_REGION' ) || ! S3_IMAGE_OPTIMIZER_REGION ) ) {
 				$s3io_errors[] = sprintf( esc_html__( 'Could not get bucket location for %s, error: %s. Will assume us-east-1 region for all buckets. You may set the region manually using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php.', 's3-image-optimizer' ), $bucket, $location->get_error_message() );
 				$region = 'us-east-1';
 		} else {
 			if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 				$region = $location['Location'];
-			} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && ! empty( S3_IMAGE_OPTIMIZER_REGION ) ) {
+			} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && S3_IMAGE_OPTIMIZER_REGION ) {
 				$region = S3_IMAGE_OPTIMIZER_REGION;
 			} else {
 				$region = 'us-east-1';
@@ -991,7 +983,7 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 	}
 	if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 		$region = $location['Location'];
-	} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && ! empty( S3_IMAGE_OPTIMIZER_REGION ) ) {
+	} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && S3_IMAGE_OPTIMIZER_REGION ) {
 		$region = S3_IMAGE_OPTIMIZER_REGION;
 	} else {
 		$region = 'us-east-1';
@@ -1151,7 +1143,7 @@ function s3io_url_loop() {
 	}
 	if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 		$region = $location['Location'];
-	} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && ! empty( S3_IMAGE_OPTIMIZER_REGION ) ) {
+	} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && S3_IMAGE_OPTIMIZER_REGION ) {
 		$region = S3_IMAGE_OPTIMIZER_REGION;
 	} else {
 		$region = 'us-east-1';
@@ -1179,7 +1171,7 @@ function s3io_url_loop() {
 	unset( $_REQUEST['ewww_force'] );
 	ewww_image_optimizer_set_option( 'ewww_image_optimizer_webp', $webp );
 	$ewww_status = get_transient( 'ewww_image_optimizer_cloud_status' );
-	if ( ! empty ( $ewww_status ) && preg_match( '/exceeded/', $ewww_status ) ) {
+	if ( ! empty( $ewww_status ) && preg_match( '/exceeded/', $ewww_status ) ) {
 		unlink( $filename );
 		$output['error'] = esc_html__( 'License Exceeded', EWWW_IMAGE_OPTIMIZER_DOMAIN );
 		echo json_encode( $output );
@@ -1279,7 +1271,7 @@ function s3io_get_args_from_url( $url ) {
 		}
 		if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 			$region = $location['Location'];
-		} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && ! empty( S3_IMAGE_OPTIMIZER_REGION ) ) {
+		} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && S3_IMAGE_OPTIMIZER_REGION ) {
 			$region = S3_IMAGE_OPTIMIZER_REGION;
 		} else {
 			$region = 'us-east-1';
