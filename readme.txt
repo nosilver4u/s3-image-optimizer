@@ -1,9 +1,9 @@
 === S3 Image Optimizer ===
 Contributors: nosilver4u
-Tags: amazon, s3, cloudfront, image, optimize, optimization, photo, picture, seo, compression, wp-cli 
+Tags: amazon, s3, cloudfront, image, optimize, optimization, photo, picture, seo, compression, wp-cli
 Requires at least: 4.4
-Tested up to: 4.7.3
-Stable tag: 1.3
+Tested up to: 4.7.4
+Stable tag: 1.4
 License: GPLv3
 
 Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
@@ -33,9 +33,14 @@ It currently uses a web-based optimization process, but a wp-cli interface is on
 
 = Why aren't there any questions here? =
 
-Start asking, and then we'll see what needs answering: https://wordpress.org/support/plugin/s3-image-optimizer
+Start asking, and then we'll see what needs answering: https://ewww.io/contact-us/
 
 == Changelog ==
+
+= 1.4 =
+* catch permissions errors on individual files
+* removed undefined constant
+* fixed undefined variable during wp-cli operation
 
 = 1.3 =
 * fixed error when using empty() on a constant that breaks really old PHP installs (5.4 or lower)
