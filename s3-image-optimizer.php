@@ -4,7 +4,7 @@ Plugin Name: S3 Image Optimizer
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
 Text Domain: s3-image-optimizer
-Version: 1.4
+Version: 1.4.1
 Author URI: https://ewww.io/
 */
 
@@ -219,6 +219,10 @@ function s3io_options_page() {
 	if ( class_exists( 'Amazon_Web_Services' ) ) {
 		global $amazon_web_services;
 		$aws = $amazon_web_services->get_client();
+		if ( is_wp_error( $aws ) ) {
+			echo $aws->get_error_message();
+			return;
+		}
 		$client = $aws->get( 'S3' );
 		try {
 			$buckets = $client->listBuckets();
