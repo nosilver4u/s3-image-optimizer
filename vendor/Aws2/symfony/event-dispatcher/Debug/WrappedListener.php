@@ -10,9 +10,9 @@
  */
 namespace S3IO\Aws2\Symfony\Component\EventDispatcher\Debug;
 
-use S3IO\Aws2\Symfony\Component\Stopwatch\Stopwatch;
 use S3IO\Aws2\Symfony\Component\EventDispatcher\Event;
 use S3IO\Aws2\Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use S3IO\Aws2\Symfony\Component\Stopwatch\Stopwatch;
 /**
  * @author Fabien Potencier <fabien@symfony.com>
  */
@@ -49,7 +49,7 @@ class WrappedListener
     {
         $this->called = true;
         $e = $this->stopwatch->start($this->name, 'event_listener');
-        call_user_func($this->listener, $event, $eventName, $this->dispatcher ?: $dispatcher);
+        \call_user_func($this->listener, $event, $eventName, $this->dispatcher ?: $dispatcher);
         if ($e->isStarted()) {
             $e->stop();
         }

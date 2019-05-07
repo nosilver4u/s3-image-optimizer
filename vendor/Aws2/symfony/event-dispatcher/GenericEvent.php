@@ -35,7 +35,7 @@ class GenericEvent extends \S3IO\Aws2\Symfony\Component\EventDispatcher\Event im
     /**
      * Getter for subject property.
      *
-     * @return mixed $subject The observer subject
+     * @return mixed The observer subject
      */
     public function getSubject()
     {

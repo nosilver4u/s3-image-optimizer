@@ -4,7 +4,7 @@
 
 namespace S3IO\Aws2\Composer\Autoload;
 
-class ComposerStaticInita885122a33864aec723614bf26c17285
+class ComposerStaticInit0545347a5683e1af0dd1e7c2825bc918
 {
     public static $classMap = array (
         'ComposerLintTask' => __DIR__ . '/../..' . '/guzzle/guzzle/phing/tasks/ComposerLintTask.php',
@@ -520,7 +520,7 @@ class ComposerStaticInita885122a33864aec723614bf26c17285
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->classMap = ComposerStaticInita885122a33864aec723614bf26c17285::$classMap;
+            $loader->classMap = ComposerStaticInit0545347a5683e1af0dd1e7c2825bc918::$classMap;
 
         }, null, ClassLoader::class);
     }

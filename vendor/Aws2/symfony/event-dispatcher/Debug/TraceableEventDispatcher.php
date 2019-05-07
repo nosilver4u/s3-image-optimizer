@@ -10,11 +10,11 @@
  */
 namespace S3IO\Aws2\Symfony\Component\EventDispatcher\Debug;
 
+use S3IO\Aws2\Psr\Log\LoggerInterface;
+use S3IO\Aws2\Symfony\Component\EventDispatcher\Event;
 use S3IO\Aws2\Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use S3IO\Aws2\Symfony\Component\EventDispatcher\EventSubscriberInterface;
-use S3IO\Aws2\Symfony\Component\EventDispatcher\Event;
 use S3IO\Aws2\Symfony\Component\Stopwatch\Stopwatch;
-use S3IO\Aws2\Psr\Log\LoggerInterface;
 /**
  * Collects some data about event listeners.
  *
@@ -179,7 +179,7 @@ class TraceableEventDispatcher implements \S3IO\Aws2\Symfony\Component\EventDisp
      */
     public function __call($method, $arguments)
     {
-        return call_user_func_array(array($this->dispatcher, $method), $arguments);
+        return \call_user_func_array(array($this->dispatcher, $method), $arguments);
     }
     /**
      * Called before dispatching the event.
@@ -261,7 +261,7 @@ class TraceableEventDispatcher implements \S3IO\Aws2\Symfony\Component\EventDisp
         }
         if ($listener instanceof \Closure) {
             $info += array('type' => 'Closure', 'pretty' => 'closure');
-        } elseif (is_string($listener)) {
+        } elseif (\is_string($listener)) {
             try {
                 $r = new \ReflectionFunction($listener);
                 $file = $r->getFileName();
@@ -271,11 +271,11 @@ class TraceableEventDispatcher implements \S3IO\Aws2\Symfony\Component\EventDisp
                 $line = null;
             }
             $info += array('type' => 'Function', 'function' => $listener, 'file' => $file, 'line' => $line, 'pretty' => $listener);
-        } elseif (is_array($listener) || is_object($listener) && is_callable($listener)) {
-            if (!is_array($listener)) {
+        } elseif (\is_array($listener) || \is_object($listener) && \is_callable($listener)) {
+            if (!\is_array($listener)) {
                 $listener = array($listener, '__invoke');
             }
-            $class = is_object($listener[0]) ? get_class($listener[0]) : $listener[0];
+            $class = \is_object($listener[0]) ? \get_class($listener[0]) : $listener[0];
             try {
                 $r = new \ReflectionMethod($class, $listener[1]);
                 $file = $r->getFileName();
@@ -290,10 +290,10 @@ class TraceableEventDispatcher implements \S3IO\Aws2\Symfony\Component\EventDisp
     }
     private function sortListenersByPriority($a, $b)
     {
-        if (is_int($a['priority']) && !is_int($b['priority'])) {
+        if (\is_int($a['priority']) && !\is_int($b['priority'])) {
             return 1;
         }
-        if (!is_int($a['priority']) && is_int($b['priority'])) {
+        if (!\is_int($a['priority']) && \is_int($b['priority'])) {
             return -1;
         }
         if ($a['priority'] === $b['priority']) {

@@ -5,7 +5,7 @@ namespace S3IO;
 use S3IO\Aws2\Aws\Common\Aws;
 use Exception;
 
-class Amazon_Web_Services { //extends \AS3CF_Plugin_Base {
+class Amazon_Web_Services {
 
 	/**
 	 * @var
@@ -176,4 +176,5 @@ class Amazon_Web_Services { //extends \AS3CF_Plugin_Base {
 		return false;
 	}
 }
+global $s3io_amazon_web_services;
 $s3io_amazon_web_services = new Amazon_Web_Services();

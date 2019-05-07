@@ -4,12 +4,12 @@ Plugin Name: S3 Image Optimizer
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
 Text Domain: s3-image-optimizer
-Version: 1.6
+Version: 1.7
 Author URI: https://ewww.io/
 */
 
 // Constants
-define( 'S3IO_VERSION', '1.6' );
+define( 'S3IO_VERSION', '1.7' );
 // this is the full path of the plugin file itself
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // this is the path of the plugin file relative to the plugins/ folder
@@ -25,11 +25,11 @@ add_action( 'admin_init', 's3io_activate_license' );
 add_filter( 'aws_get_client_args', 's3io_addv4_args', 8 );
 add_filter( 'aws_get_client_args', 's3io_eucentral_args' );
 
+require_once( plugin_dir_path( __FILE__ ) . 'classes/amazon-web-services.php' );
+require_once( plugin_dir_path( __FILE__ ) . 'vendor/Aws2/vendor/autoload.php' );
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	require_once( plugin_dir_path( __FILE__ ) . 's3cli.php' );
 }
-require_once( plugin_dir_path( __FILE__ ) . '/classes/amazon-web-services.php' );
-require_once( plugin_dir_path( __FILE__ ) . '/vendor/Aws2/vendor/autoload.php' );
 
 global $wpdb;
 if ( ! isset( $wpdb->s3io_images ) ) {
@@ -37,8 +37,9 @@ if ( ! isset( $wpdb->s3io_images ) ) {
 }
 
 function s3io_admin_init() {
-	// if we ever have multisite global options some day:
-/*	if ( ! function_exists( 'is_plugin_active_for_network' ) && is_multisite() ) {
+	/*
+	If we ever have multisite global options some day:
+	if ( ! function_exists( 'is_plugin_active_for_network' ) && is_multisite() ) {
 		// need to include the plugin library for the is_plugin_active function
 		require_once( ABSPATH . 'wp-admin/includes/plugin.php' );
 	}
@@ -48,7 +49,8 @@ function s3io_admin_init() {
 			update_site_option( 's3io_bucketlist', s3io_bucketlist_sanitize( $_POST['s3io_bucketlist'] ) );
 			add_action('network_admin_notices', 's3io_network_settings_saved');
 		}
-	}*/
+	}
+	*/
 
 	register_setting( 's3io_options', 's3io_verion' );
 	register_setting( 's3io_options', 's3io_bucketlist', 's3io_bucketlist_sanitize' );
@@ -84,7 +86,7 @@ function s3io_admin_init() {
 	}
 	$license_key = trim( get_option( 's3io_license_key' ) );
 	$edd_updater = new S3IO_SL_Plugin_Updater( S3IO_SL_STORE_URL, __FILE__, array(
-		'version'	=> '1.6',
+		'version'	=> '1.7',
 		'license'	=> $license_key,
 		'item_id'	=> S3IO_SL_ITEM_ID,
 		'author'	=> 'Shane Bishop',
@@ -499,14 +501,14 @@ function s3io_url_script( $hook ) {
 	wp_enqueue_style( 'jquery-ui-progressbar', plugins_url( 'jquery-ui-1.10.1.custom.css', __FILE__ ) );
 }
 
-// scan buckets for images and store in database
+// Scan buckets for images and store in database.
 function s3io_image_scan( $verbose = false ) {
 	global $wpdb;
 	global $s3io_errors;
 	$s3io_errors = array();
-	$images = array();
+	$images      = array();
 	$image_count = 0;
-//	$start = microtime( true );
+	/* $start = microtime( true ); */
 	if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && S3_IMAGE_OPTIMIZER_BUCKET ) {
 		$bucket_list = array( S3_IMAGE_OPTIMIZER_BUCKET );
 	} else {
@@ -525,7 +527,7 @@ function s3io_image_scan( $verbose = false ) {
 		try {
 			$buckets = $client->listBuckets();
 		} catch ( Exception $e ) {
-                        $buckets = new WP_Error( 'exception', $e->getMessage() );
+			$buckets = new WP_Error( 'exception', $e->getMessage() );
 		}
 		if ( is_wp_error( $buckets ) ) {
 			$s3io_errors[] = sprintf( esc_html__( 'Could not list buckets: %s', 's3-image-optimizer' ), $buckets->get_error_message() );
@@ -1400,6 +1402,14 @@ function s3io_get_args_from_url( $url ) {
 		}
 	}
 	return false;
+}
+
+if ( ! function_exists( 'ewwwio_debug_message' ) ) {
+	function ewwwio_debug_message( $message ) {
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
+			WP_CLI::debug( $message );
+		}
+	}
 }
 
 add_action( 'admin_enqueue_scripts', 's3io_bulk_script' );

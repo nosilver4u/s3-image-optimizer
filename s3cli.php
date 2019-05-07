@@ -94,7 +94,7 @@ class S3IO_CLI extends WP_CLI_Command {
 		update_option( 's3io_resume', true );
 
 		$images_finished = 0;
-		$image_total = $image_count;
+		$image_total     = $image_count;
 		while ( $image_count > 0 ) {
 			s3io_bulk_loop( true, $verbose );
 			$image_count--;
@@ -102,8 +102,8 @@ class S3IO_CLI extends WP_CLI_Command {
 			WP_CLI::line( __( 'Optimized:', 's3-image-optimizer' ) . " $images_finished / $image_total" );
 		}
 
-		// just to make sure we cleared them all
-		$image_count = s3io_table_count_pending();
+		// Just to make sure we cleared them all.
+		$image_count  = s3io_table_count_pending();
 		$image_total += $image_count;
 		if ( $image_count > 0 ) {
 			while ( $image_count > 0 ) {

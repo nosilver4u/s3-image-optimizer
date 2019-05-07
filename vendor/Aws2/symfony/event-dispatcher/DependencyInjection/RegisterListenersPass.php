@@ -10,8 +10,8 @@
  */
 namespace S3IO\Aws2\Symfony\Component\EventDispatcher\DependencyInjection;
 
-use S3IO\Aws2\Symfony\Component\DependencyInjection\ContainerBuilder;
 use S3IO\Aws2\Symfony\Component\DependencyInjection\Compiler\CompilerPassInterface;
+use S3IO\Aws2\Symfony\Component\DependencyInjection\ContainerBuilder;
 /**
  * Compiler pass to register tagged services for an event dispatcher.
  */

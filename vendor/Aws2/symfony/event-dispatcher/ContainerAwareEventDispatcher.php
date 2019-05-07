@@ -48,7 +48,7 @@ class ContainerAwareEventDispatcher extends \S3IO\Aws2\Symfony\Component\EventDi
      */
     public function addListenerService($eventName, $callback, $priority = 0)
     {
-        if (!is_array($callback) || 2 !== count($callback)) {
+        if (!\is_array($callback) || 2 !== \count($callback)) {
             throw new \InvalidArgumentException('Expected an array("service", "method") argument');
         }
         $this->listenerIds[$eventName][] = array($callback[0], $callback[1], $priority);
@@ -118,9 +118,9 @@ class ContainerAwareEventDispatcher extends \S3IO\Aws2\Symfony\Component\EventDi
     public function addSubscriberService($serviceId, $class)
     {
         foreach ($class::getSubscribedEvents() as $eventName => $params) {
-            if (is_string($params)) {
+            if (\is_string($params)) {
                 $this->listenerIds[$eventName][] = array($serviceId, $params, 0);
-            } elseif (is_string($params[0])) {
+            } elseif (\is_string($params[0])) {
                 $this->listenerIds[$eventName][] = array($serviceId, $params[0], isset($params[1]) ? $params[1] : 0);
             } else {
                 foreach ($params as $listener) {
