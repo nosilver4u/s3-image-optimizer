@@ -91,7 +91,7 @@ class S3IO_CLI extends WP_CLI_Command {
 			WP_CLI::line( sprintf( __( 'There are %1$d images to be optimized.', 's3-image-optimizer' ), $image_count ) );
 		}
 
-		update_option( 's3io_resume', true );
+		update_option( 's3io_resume', true, false );
 
 		$images_finished = 0;
 		$image_total     = $image_count;
@@ -113,6 +113,7 @@ class S3IO_CLI extends WP_CLI_Command {
 				WP_CLI::line( __( 'Optimized:', 's3-image-optimizer' ) . " $images_finished / $image_total" );
 			}
 		}
+		update_option( 's3io_resume', '', false );
 
 		// and let the user know we are done
 		WP_CLI::success( __( 'Finished Optimization!', 's3-image-optimizer' ) );

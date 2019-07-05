@@ -42,7 +42,6 @@ function s3io_admin_init() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	register_setting( 's3io_options', 's3io_verion' );
 	register_setting( 's3io_options', 's3io_bucketlist', 's3io_bucketlist_sanitize' );
-	register_setting( 's3io_options', 's3io_resume' );
 	register_setting( 's3io_options', 's3io_license_key', 's3io_license_sanitize' );
 	register_setting( 's3io_options', 's3io_eucentral' );
 	register_setting( 's3io_options', 's3io_aws_access_key_id', 'trim' );
@@ -437,7 +436,7 @@ function s3io_bulk_script( $hook ) {
 	}
 	// Check to see if we are supposed to reset the bulk operation and verify we are authorized to do so.
 	if ( ! empty( $_REQUEST['s3io_reset_bulk'] ) && wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk-reset' ) ) {
-		update_option( 's3io_resume', '' );
+		update_option( 's3io_resume', '', false );
 	}
 	// Check the 'bulk resume' option.
 	$resume = get_option( 's3io_resume' );
@@ -1049,7 +1048,7 @@ function s3io_bulk_init() {
 	session_write_close();
 	// store the time and number of images for later display
 	update_option( 's3io_last_run', array( time(), s3io_table_count_pending() ) );
-	update_option( 's3io_resume', true );
+	update_option( 's3io_resume', true, false );
 	// let the user know that we are beginning
 	// generate the WP spinner image for display
 	$loading_image = plugins_url( '/wpspin.gif', __FILE__ );
@@ -1236,6 +1235,7 @@ function s3io_bulk_cleanup( $auto = false ) {
 	}
 	$stored_last = get_option( 's3io_last_run' );
 	update_option( 's3io_last_run', array( time(), $stored_last[1] ) );
+	update_option( 's3io_resume', '', false );
 	if ( ! $auto ) {
 		// and let the user know we are done
 		echo '<p><b>' . esc_html__( 'Finished', 's3-image-optimizer' ) . '</b></p>';

@@ -40,6 +40,8 @@ Start asking, and then we'll see what needs answering: https://ewww.io/contact-u
 = 1.8 =
 * fixed error with redeclaring ewwwio_debug_message() in some edge cases
 * fixed bulk optimizer UI bugs
+* prevent s3io_resume option from autoloading
+* reset s3io_resume after completion
 
 = 1.7 =
 * problem with AWS object context (not global when it needs to be)
