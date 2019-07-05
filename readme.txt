@@ -3,7 +3,7 @@ Contributors: nosilver4u
 Tags: amazon, s3, cloudfront, image, optimize, optimization, photo, picture, seo, compression, wp-cli
 Requires at least: 4.9
 Tested up to: 5.2
-Stable tag: 1.8
+Stable tag: 1.9
 License: GPLv3
 
 Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
@@ -37,11 +37,13 @@ Start asking, and then we'll see what needs answering: https://ewww.io/contact-u
 
 == Changelog ==
 
+= 1.9 =
+* prevent s3io_resume option from autoloading
+* reset s3io_resume after completion
+
 = 1.8 =
 * fixed error with redeclaring ewwwio_debug_message() in some edge cases
 * fixed bulk optimizer UI bugs
-* prevent s3io_resume option from autoloading
-* reset s3io_resume after completion
 
 = 1.7 =
 * problem with AWS object context (not global when it needs to be)
