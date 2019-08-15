@@ -1,17 +1,24 @@
 <?php
+/**
+ * Loader for S3 Image Optimizer plugin.
+ *
+ * @package S3_Image_Optimizer
+ */
+
 /*
 Plugin Name: S3 Image Optimizer
+Plugin URI: https://ewww.io/downloads/s3-image-optimizer/
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
-Text Domain: s3-image-optimizer
-Version: 1.9
+Version: 2.0
 Author URI: https://ewww.io/
+License: GPLv3
 */
 
 /**
  * Constants
  */
-define( 'S3IO_VERSION', '1.9' );
+define( 'S3IO_VERSION', '2.0' );
 // This is the full path of the plugin file itself.
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // This is the path of the plugin file relative to the plugins/ folder.
@@ -25,12 +32,12 @@ add_action( 'admin_init', 's3io_admin_init' );
 add_action( 'admin_menu', 's3io_admin_menu', 60 );
 add_action( 'admin_init', 's3io_activate_license' );
 add_filter( 'aws_get_client_args', 's3io_addv4_args', 8 );
-add_filter( 'aws_get_client_args', 's3io_eucentral_args' );
+add_filter( 'aws_get_client_args', 's3io_dospaces' );
 
-require_once( plugin_dir_path( __FILE__ ) . 'classes/amazon-web-services.php' );
+require_once( plugin_dir_path( __FILE__ ) . 'classes/class-amazon-web-services.php' );
 require_once( plugin_dir_path( __FILE__ ) . 'vendor/Aws2/vendor/autoload.php' );
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
-	require_once( plugin_dir_path( __FILE__ ) . 's3cli.php' );
+	require_once( plugin_dir_path( __FILE__ ) . 'classes/class-s3io-cli.php' );
 }
 
 global $wpdb;
@@ -38,12 +45,15 @@ if ( ! isset( $wpdb->s3io_images ) ) {
 	$wpdb->s3io_images = $wpdb->prefix . 's3io_images';
 }
 
+/**
+ * Register settings and perform any upgrades during admin_init hook.
+ */
 function s3io_admin_init() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	register_setting( 's3io_options', 's3io_verion' );
 	register_setting( 's3io_options', 's3io_bucketlist', 's3io_bucketlist_sanitize' );
 	register_setting( 's3io_options', 's3io_license_key', 's3io_license_sanitize' );
-	register_setting( 's3io_options', 's3io_eucentral' );
+	register_setting( 's3io_options', 's3io_dospaces', 'trim' );
 	register_setting( 's3io_options', 's3io_aws_access_key_id', 'trim' );
 	register_setting( 's3io_options', 's3io_aws_secret_access_key', 'trim' );
 	if ( get_option( 's3io_version' ) < S3IO_VERSION ) {
@@ -69,14 +79,14 @@ function s3io_admin_init() {
 	}
 
 	if ( ! class_exists( 'S3IO_SL_Plugin_Updater' ) ) {
-		include( dirname( __FILE__ ) . '/EDD_SL_Plugin_Updater.php' );
+		include( dirname( __FILE__ ) . '/vendor/EDD_SL_Plugin_Updater.php' );
 	}
 	$license_key = trim( get_option( 's3io_license_key' ) );
 	$edd_updater = new S3IO_SL_Plugin_Updater(
 		S3IO_SL_STORE_URL,
 		__FILE__,
 		array(
-			'version' => '1.9',
+			'version' => '2.0',
 			'license' => $license_key,
 			'item_id' => S3IO_SL_ITEM_ID,
 			'author'  => 'Shane Bishop',
@@ -85,6 +95,9 @@ function s3io_admin_init() {
 	);
 }
 
+/**
+ * Install the s3io_images table into the db for tracking image optimization.
+ */
 function s3io_install_table() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	global $wpdb;
@@ -121,10 +134,13 @@ function s3io_install_table() {
 	dbDelta( $sql );
 
 	// No need to autoload this option (even if it is small) since we only use it on manual activation.
-	add_option( 's3io_license_status', '', 'no' );
-	add_option( 's3io_optimize_urls', '', 'no' );
+	add_option( 's3io_license_status', '', '', 'no' );
+	add_option( 's3io_optimize_urls', '', '', 'no' );
 }
 
+/**
+ * Activate an S3 IO license key.
+ */
 function s3io_activate_license() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	if ( isset( $_POST['s3io_license_activate'] ) ) {
@@ -160,13 +176,20 @@ function s3io_activate_license() {
 	}
 }
 
+/**
+ * Generates css include for progressbars to match admin style.
+ */
 function s3io_progressbar_style() {
 	if ( function_exists( 'wp_add_inline_style' ) ) {
 		wp_add_inline_style( 'jquery-ui-progressbar', '.ui-widget-header { background-color: ' . s3io_admin_background() . '; }' );
 	}
 }
 
-// determines the background color to use based on the selected theme
+/**
+ * Determines the background color to use based on the selected admin theme.
+ *
+ * @return string The background color in hex notation.
+ */
 function s3io_admin_background() {
 	$user_info = wp_get_current_user();
 	switch ( $user_info->admin_color ) {
@@ -189,72 +212,111 @@ function s3io_admin_background() {
 	}
 }
 
+/**
+ * Adjusts the signature/version and region from the defaults.
+ *
+ * @param array $args A list of arguments sent to the AWS SDK.
+ * @return array The arguments for the AWS connection, possibly modified.
+ */
 function s3io_addv4_args( $args ) {
 	$args['signature'] = 'v4';
 	$args['region']    = 'us-east-1';
 	return $args;
 }
 
-function s3io_eucentral_args( $args ) {
-	if ( get_option( 's3io_eucentral' ) ) {
-		$args['signature'] = 'v4';
-		$args['region']    = 'eu-central-1';
+/**
+ * Adjusts the endpoint and region for DO Spaces connection.
+ *
+ * @param array $args A list of arguments sent to the AWS SDK.
+ * @return array The arguments for the AWS connection, possibly modified.
+ */
+function s3io_dospaces( $args ) {
+	if ( get_option( 's3io_dospaces' ) || defined( 'S3IO_DOSPACES' ) ) {
+		$region           = defined( 'S3IO_DOSPACES' ) ? S3IO_DOSPACES : get_option( 's3io_dospaces' );
+		$args['endpoint'] = 'https://' . get_option( 's3io_dospaces' ) . '.digitaloceanspaces.com';
+		$args['region']   = get_option( 's3io_dospaces' );
 	}
 	return $args;
 }
 
+/**
+ * Let the user know that they need the EWWW IO plugin before S3 IO can do anything.
+ */
 function s3io_missing_ewww_plugin() {
 	echo "<div id='s3io-error-ewww' class='error'><p>" . esc_html__( 'Could not detect the EWWW Image Optimizer plugin, please install and configure it first.', 's3-image-optimizer' ) . '</p></div>';
 }
 
+/**
+ * Setup the admin menu items for the plugin.
+ */
 function s3io_admin_menu() {
 	add_media_page( esc_html__( 'S3 Bulk Image Optimizer', 's3-image-optimizer' ), esc_html__( 'S3 Bulk Optimizer', 's3-image-optimizer' ), 'activate_plugins', 's3io-bulk-display', 's3io_bulk_display' );
 	add_media_page( esc_html__( 'S3 Bulk URL Optimizer', 's3-image-optimizer' ), esc_html__( 'S3 URL Optimizer', 's3-image-optimizer' ), 'activate_plugins', 's3io-url-display', 's3io_url_display' );
 	// Add options page to the settings menu.
 	add_options_page(
-		esc_html__( 'S3 Image Optimizer', 's3-image-optimizer' ),	//Title
-		esc_html__( 'S3 Image Optimizer', 's3-image-optimizer' ),	//Sub-menu title
-		'activate_plugins',						//Security
-		S3IO_PLUGIN_FILE,						//File to open
-		's3io_options_page'						//Function to call
+		esc_html__( 'S3 Image Optimizer', 's3-image-optimizer' ), // Title.
+		esc_html__( 'S3 Image Optimizer', 's3-image-optimizer' ), // Sub-menu title.
+		'activate_plugins',                                       // Security.
+		S3IO_PLUGIN_FILE,                                         // File to open.
+		's3io_options_page'                                       // Function to call.
 	);
 }
 
+/**
+ * Display settings page for the plugin.
+ */
 function s3io_options_page() {
 	global $s3io_amazon_web_services;
 	$license_status = get_option( 's3io_license_status' );
-?>
+	?>
 	<div class='wrap'>
 		<h1><?php esc_html_e( 'S3 Image Optimizer', 's3-image-optimizer' ); ?></h1>
 		<form method='post' action='options.php'>
-<?php	settings_fields( 's3io_options' ); ?>
+			<?php
+			settings_fields( 's3io_options' );
+			?>
 			<table class='form-table'>
 				<tr>
 					<th>
-						<label for='s3io_license_key'><?php esc_html_e( 'License Key', 's3-image-optimizer' ) ?></label>
+						<label for='s3io_license_key'><?php esc_html_e( 'License Key', 's3-image-optimizer' ); ?></label>
 					</th>
 					<td>
-						<input type="text" id="s3io_license_key" name="s3io_license_key" value="<?php echo get_option( 's3io_license_key' ) ?>" size="32" /> <?php esc_html_e( 'Enter your license key to activate automatic update checking', 's3-image-optimizer' ); ?>
+						<input type="text" id="s3io_license_key" name="s3io_license_key" value="<?php echo get_option( 's3io_license_key' ); ?>" size="32" /> <?php esc_html_e( 'Enter your license key to activate automatic update checking', 's3-image-optimizer' ); ?>
 					</td>
 				</tr>
-<?php	if ( false !== get_option( 's3io_license_key' ) ) { ?>
+				<?php
+				if ( false !== get_option( 's3io_license_key' ) ) {
+					?>
 				<tr valign="top">
 					<th scope="row" valign="top"><?php esc_html_e( 'Activate License', 's3-image-optimizer' ); ?></th>
 					<td>
-<?php		if ( $license_status !== false && $license_status == 'valid' ) { ?>
+						<?php
+						if ( false !== $license_status && 'valid' === $license_status ) {
+							?>
 						<span style="color:green;"><?php esc_html_e( 'active', 's3-image-optimizer' ); ?></span>
-<?php		} else {
-			wp_nonce_field( 's3io_activation_nonce', 's3io_activation_nonce' ) ?>
+							<?php
+						} else {
+							wp_nonce_field( 's3io_activation_nonce', 's3io_activation_nonce' );
+							?>
 						<input type="submit" class="button-secondary" name="s3io_license_activate" value="<?php esc_attr_e( 'Activate License', 's3-image-optimizer' ); ?>"/>
-<?php		} ?>
+							<?php
+						}
+						?>
 					</td>
 				</tr>
-<?php	}
-	if ( $s3io_amazon_web_services->needs_access_keys() ) { ?>
+					<?php
+				}
+				if ( $s3io_amazon_web_services->needs_access_keys() ) {
+					?>
 				<tr>
 					<th><?php esc_html_e( 'AWS Access Keys', 's3-image-optimizer' ); ?></th>
 					<td>
-						<i><?php esc_html_e( 'We recommend defining your Access Keys in wp-config.php so long as you don’t commit it to source control (you shouldn’t be).', 's3-image-optimizer' ); echo '</i><br>'; esc_html_e( 'Simply copy the following snippet and replace the stars with the keys.'); ?>
+						<i>
+					<?php
+					echo esc_html__( 'We recommend defining your Access Keys in wp-config.php so long as you don’t commit it to source control (you shouldn’t be).', 's3-image-optimizer' ) .
+						'</i><br>' .
+						esc_html__( 'Simply copy the following snippet and replace the stars with the keys.' );
+					?>
 						<a href="https://docs.ewww.io/article/61-creating-an-amazon-web-services-aws-user" target="_blank"><?php esc_html_e( 'Not sure where to find your access keys?', 's3-image-optimizer' ); ?></a><br>
 						<pre>define( 'DBI_AWS_ACCESS_KEY_ID', '********************' );
 define( 'DBI_AWS_SECRET_ACCESS_KEY', '****************************************' );</pre>
@@ -268,14 +330,18 @@ define( 'DBI_AWS_SECRET_ACCESS_KEY', '****************************************' 
 					<th><label for="s3io_aws_secret_access_key"><?php esc_html_e( 'AWS Secret Access Key', 's3-image-optimizer' ); ?></label></th>
 					<td><input type="text" id="s3io_aws_secret_access_key" name="s3io_aws_secret_access_key" value="<?php echo get_option( 's3io_aws_secret_access_key' ); ?>" size="64" /></td>
 				</tr>
-<?php	} else {
-	 	if ( get_option( 's3io_aws_access_key_id' ) ) { ?>
+					<?php
+				} else {
+					if ( get_option( 's3io_aws_access_key_id' ) ) {
+						?>
 				<tr>
 					<th><label for="s3io_aws_access_key_id"><?php esc_html_e( 'AWS Access Key ID', 's3-image-optimizer' ); ?></label></th>
 					<td><input type="text" id="s3io_aws_access_key_id" name="s3io_aws_access_key_id" value="<?php echo get_option( 's3io_aws_access_key_id' ); ?>" size="64" /></td>
 				</tr>
-<?php		}
-	 	if ( get_option( 's3io_aws_secret_access_key' ) ) { ?>
+						<?php
+					}
+					if ( get_option( 's3io_aws_secret_access_key' ) ) {
+						?>
 				<tr>
 					<th><label for="s3io_fake_secret_access_key"><?php esc_html_e( 'AWS Secret Access Key', 's3-image-optimizer' ); ?></label></th>
 					<td><input type="text" id="s3io_fake_secret_access_key" name="s3io_fake_secret_access_key" readonly='readonly' value="********************" size="64" />
@@ -283,69 +349,91 @@ define( 'DBI_AWS_SECRET_ACCESS_KEY', '****************************************' 
 						<input type="hidden" id="s3io_aws_secret_access_key" name="s3io_aws_secret_access_key" value="<?php echo get_option( 's3io_aws_secret_access_key' ); ?>" size="64" />
 					</td>
 				</tr>
-<?php 		}
-	}
-	try {
-		$aws = $s3io_amazon_web_services->get_client();
-	} catch ( Exception $e ) {
-		echo '</table><p>' . $e->getMessage() . '</p>';
-		echo "<p class='submit'><input type='submit' class='button-primary' value='" . esc_attr__( 'Save Changes', 's3-image-optimizer' ) . "' /></p>";
-		return;
-	}
-	if ( is_wp_error( $aws ) ) {
-		echo $aws->get_error_message();
-		echo '</table><p>' . $aws->get_error_message() . '</p>';
-		echo "<p class='submit'><input type='submit' class='button-primary' value='" . esc_attr__( 'Save Changes', 's3-image-optimizer' ) . "' /></p>";
-		return;
-	}
-	$client = $aws->get( 'S3' );
-	try {
-		$buckets = $client->listBuckets();
-	} catch ( Exception $e ) {
-		$buckets = new WP_Error( 'exception', $e->getMessage() );
-	} ?>
+						<?php
+					}
+				}
+				?>
+				<tr>
+					<th><label for="s3io_dospaces"><?php esc_html_e( 'Digital Ocean Spaces Region', 's3-image-optimizer' ); ?></label></th>
+					<td>
+						<input type="text" id="s3io_dospaces" name="s3io_dospaces" value="<?php echo esc_attr( get_option( 's3io_dospaces' ) ); ?>" size="10" />
+						<p class='description'><?php esc_html_e( 'To use Digital Ocean Spaces, enter the region for your space, or define the S3IO_DOSPACES constant.', 's3-image-optimizer' ); ?></p>
+					</td>
+				</tr>
+				<?php
+				try {
+					$aws = $s3io_amazon_web_services->get_client();
+				} catch ( Exception $e ) {
+					echo '</table><p>' . $e->getMessage() . '</p>';
+					echo "<p class='submit'><input type='submit' class='button-primary' value='" . esc_attr__( 'Save Changes', 's3-image-optimizer' ) . "' /></p>";
+					return;
+				}
+				if ( is_wp_error( $aws ) ) {
+					echo $aws->get_error_message();
+					echo '</table><p>' . $aws->get_error_message() . '</p>';
+					echo "<p class='submit'><input type='submit' class='button-primary' value='" . esc_attr__( 'Save Changes', 's3-image-optimizer' ) . "' /></p>";
+					return;
+				}
+				$client = $aws->get( 'S3' );
+				try {
+					$buckets = $client->listBuckets();
+				} catch ( Exception $e ) {
+					$buckets = new WP_Error( 'exception', $e->getMessage() );
+				}
+				?>
 				<tr>
 					<th><label for="s3io_bucketlist"><?php esc_html_e( 'Buckets to optimize', 's3-image-optimizer' ); ?></label></th>
 					<td>
-<?php	if ( ! is_wp_error( $buckets ) ) {
-		esc_html_e( 'One bucket per line, must match one of the buckets listed below. If empty, all available buckets will be optimized.', 's3-image-optimizer' );
-	} ?>					<br>
-						<textarea id='s3io_bucketlist' name='s3io_bucketlist' rows='3' cols='40'><?php
-	$bucket_list = get_option( 's3io_bucketlist' );
-	if ( ! empty( $bucket_list ) ) {
-		foreach ( $bucket_list as $bucket ) {
-			echo "$bucket\n";
-		}
-	}
-						?></textarea>
+				<?php
+				if ( ! is_wp_error( $buckets ) ) {
+					esc_html_e( 'One bucket per line, must match one of the buckets listed below. If empty, all available buckets will be optimized.', 's3-image-optimizer' );
+				}
+				?>
+						<br>
+				<?php
+				echo "<textarea id='s3io_bucketlist' name='s3io_bucketlist' rows='3' cols='40'>";
+				$bucket_list = get_option( 's3io_bucketlist' );
+				if ( ! empty( $bucket_list ) ) {
+					foreach ( $bucket_list as $bucket ) {
+						echo "$bucket\n";
+					}
+				}
+				echo '</textarea>';
+				?>
 						<p class='description'>
-<?php	if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && S3_IMAGE_OPTIMIZER_BUCKET ) {
-		esc_html_e( 'You have currently defined the bucket constant (S3_IMAGE_OPTIMIZER_BUCKET) which will override any buckets entered above:', 's3-image-optimizer' );
-		echo ' ' . esc_html( S3_IMAGE_OPTIMIZER_BUCKET ) . '<br><br>';
-	}
-	if ( is_wp_error( $buckets ) ) {
-		printf( esc_html__( 'Could not list buckets due to AWS error: %s', 's3-image-optimizer' ), $buckets->get_error_message() );
-	} else {
-		esc_html_e( 'These are the buckets that we have access to optimize:', 's3-image-optimizer' );
-		echo '<br>';
-		foreach ( $buckets['Buckets'] as $bucket ) {
-			echo "{$bucket['Name']}<br>\n";
-		}
-	} ?>
+				<?php
+				if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && S3_IMAGE_OPTIMIZER_BUCKET ) {
+					esc_html_e( 'You have currently defined the bucket constant (S3_IMAGE_OPTIMIZER_BUCKET) which will override any buckets entered above:', 's3-image-optimizer' );
+					echo ' ' . esc_html( S3_IMAGE_OPTIMIZER_BUCKET ) . '<br><br>';
+				}
+				if ( is_wp_error( $buckets ) ) {
+					/* translators: %s: AWS error message */
+					printf( esc_html__( 'Could not list buckets due to AWS error: %s', 's3-image-optimizer' ), $buckets->get_error_message() );
+				} else {
+					esc_html_e( 'These are the buckets that we have access to optimize:', 's3-image-optimizer' );
+					echo '<br>';
+					foreach ( $buckets['Buckets'] as $bucket ) {
+						echo "{$bucket['Name']}<br>\n";
+					}
+				}
+				?>
 						</p>
 					</td>
 				</tr>
 				<tr>
-					<th><?php esc_html_e( 'Sub-folders', 's3-image-optimizer' ) ?></th>
+					<th><?php esc_html_e( 'Sub-folders', 's3-image-optimizer' ); ?></th>
 					<td><?php esc_html_e( 'You may set the S3_IMAGE_OPTIMIZER_FOLDER constant to restrict optimization to a specific sub-directory of the bucket(s) above.', 's3-image-optimizer' ); ?></td>
 				</tr>
 			</table>
-			<p class='submit'><input type='submit' class='button-primary' value='<?php esc_attr_e( 'Save Changes', 's3-image-optimizer' ) ?>' /></p>
+			<p class='submit'><input type='submit' class='button-primary' value='<?php esc_attr_e( 'Save Changes', 's3-image-optimizer' ); ?>' /></p>
 		</form>
 	</div>
-<?php
+				<?php
 }
 
+/**
+ * Removes AWS keys from the database.
+ */
 function s3io_remove_aws_keys() {
 	if ( false === current_user_can( 'manage_options' ) ) {
 		wp_die( esc_html__( 'Access denied', 's3-image-optimizer' ) );
@@ -357,6 +445,12 @@ function s3io_remove_aws_keys() {
 	exit;
 }
 
+/**
+ * Sanitize the bucket list provided by the user.
+ *
+ * @param string $input A list of buckets, separated by newline characters.
+ * @return array An array of buckets verified to be accurate for the user's account.
+ */
 function s3io_bucketlist_sanitize( $input ) {
 	if ( empty( $input ) ) {
 		return '';
@@ -373,9 +467,9 @@ function s3io_bucketlist_sanitize( $input ) {
 	} catch ( Exception $e ) {
 		$buckets = new WP_Error( 'exception', $e->getMessage() );
 	}
-	$bucket_array = array();
-	$input_buckets = explode("\n", $input);
-	foreach ( $input_buckets as $input_bucket) {
+	$bucket_array  = array();
+	$input_buckets = explode( "\n", $input );
+	foreach ( $input_buckets as $input_bucket ) {
 		$input_bucket = trim( $input_bucket );
 		if ( is_wp_error( $buckets ) ) {
 			if ( strlen( $input_bucket ) < 3 || strlen( $input_bucket ) > 63 ) {
@@ -386,7 +480,7 @@ function s3io_bucketlist_sanitize( $input ) {
 			}
 		} else {
 			foreach ( $buckets['Buckets'] as $bucket ) {
-				if ( $input_bucket == $bucket['Name'] ) {
+				if ( $input_bucket === $bucket['Name'] ) {
 					$bucket_array[] = $input_bucket;
 				}
 			}
@@ -395,6 +489,12 @@ function s3io_bucketlist_sanitize( $input ) {
 	return $bucket_array;
 }
 
+/**
+ * Run sanity checks on license key provided by user.
+ *
+ * @param string $input The license key as entered.
+ * @return string The licensce key after validation.
+ */
 function s3io_license_sanitize( $input ) {
 	if ( empty( $input ) ) {
 		return '';
@@ -402,7 +502,7 @@ function s3io_license_sanitize( $input ) {
 	$input = trim( $input );
 	if ( preg_match( '/^[a-zA-Z0-9]+$/', $input ) ) {
 		$old = get_option( 's3io_license_key' );
-		if ( $old && $old != $input ) {
+		if ( $old && $old !== $input ) {
 			delete_option( 's3io_license_status' );
 		}
 		return $input;
@@ -411,15 +511,22 @@ function s3io_license_sanitize( $input ) {
 	}
 }
 
+/**
+ * Alert the user if the s3io folder could not be created within the uploads folder.
+ */
 function s3io_make_upload_dir_failed() {
-	echo "<div id='s3io-error-mkdir' class='error'><p>" . esc_html__( 'Could not create the s3io folder within the WordPress uploads folder, please adjust the permissions and try again.', 's3-image-optimizer' ) . "</p></div>";
+	echo "<div id='s3io-error-mkdir' class='error'><p>" . esc_html__( 'Could not create the s3io folder within the WordPress uploads folder, please adjust the permissions and try again.', 's3-image-optimizer' ) . '</p></div>';
 }
 
-// prepares the bulk operation and includes the javascript functions
+/**
+ * Prepares the bulk operation and includes the javascript functions.
+ *
+ * @param string $hook The hook/suffix for the current page.
+ */
 function s3io_bulk_script( $hook ) {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
-	// make sure we are being called from the proper page
-	if ( 's3io-auto' !== $hook && 'media_page_s3io-bulk-display' != $hook ) {
+	// Make sure we are being called from the proper page.
+	if ( 's3io-auto' !== $hook && 'media_page_s3io-bulk-display' !== $hook ) {
 		return;
 	}
 	$upload_dir = wp_upload_dir();
@@ -430,7 +537,7 @@ function s3io_bulk_script( $hook ) {
 			add_action( 'admin_notices', 's3io_make_upload_dir_failed' );
 		}
 	}
-	// check to see if the user has asked to reset (empty) the optimized images table
+	// Check to see if the user has asked to reset (empty) the optimized images table.
 	if ( ! empty( $_REQUEST['s3io_force_empty'] ) && wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk-empty' ) ) {
 		s3io_table_truncate();
 	}
@@ -445,32 +552,41 @@ function s3io_bulk_script( $hook ) {
 		s3io_table_delete_pending();
 		s3io_image_scan();
 	}
-	if ( 'media_page_s3io_bulk-display' != $hook ) {
+	if ( 'media_page_s3io_bulk-display' !== $hook ) {
 		// Submit a couple variables to the javascript to work with.
 		wp_enqueue_script( 's3iobulkscript', plugins_url( '/s3io.js', __FILE__ ), array( 'jquery', 'jquery-ui-slider', 'jquery-ui-progressbar', 'postbox', 'dashboard' ) );
 		$image_count = s3io_table_count_optimized();
-		wp_localize_script( 's3iobulkscript', 's3io_vars', array(
-			'_wpnonce' => wp_create_nonce( 's3io-bulk' ),
-			'attachments' => s3io_table_count_pending(), // Number of images to do.
-			'image_count' => $image_count, // Number of images completed.
-			'count_string' => sprintf( esc_html__( '%d images', 's3-image-optimizer' ), $image_count ),
-			'operation_stopped' => esc_html__( 'Optimization stopped, reload page to resume.', 's3-image-optimizer' ),
-			'operation_interrupted' => esc_html__( 'Operation Interrupted', 's3-image-optimizer' ),
-			'temporary_failure' => esc_html__( 'Temporary failure, seconds left to retry:', 's3-image-optimizer' ),
-			'remove_failed' => esc_html__( 'Could not remove image from table.', 's3-image-optimizer' ),
-			'optimized' => esc_html__( 'Optimized', 's3-image-optimizer' ),
-		) );
+		wp_localize_script(
+			's3iobulkscript',
+			's3io_vars',
+			array(
+				'_wpnonce'              => wp_create_nonce( 's3io-bulk' ),
+				'attachments'           => s3io_table_count_pending(), // Number of images to do.
+				'image_count'           => $image_count, // Number of images completed.
+				/* translators: %d: number of images */
+				'count_string'          => sprintf( esc_html__( '%d images', 's3-image-optimizer' ), $image_count ),
+				'operation_stopped'     => esc_html__( 'Optimization stopped, reload page to resume.', 's3-image-optimizer' ),
+				'operation_interrupted' => esc_html__( 'Operation Interrupted', 's3-image-optimizer' ),
+				'temporary_failure'     => esc_html__( 'Temporary failure, seconds left to retry:', 's3-image-optimizer' ),
+				'remove_failed'         => esc_html__( 'Could not remove image from table.', 's3-image-optimizer' ),
+				'optimized'             => esc_html__( 'Optimized', 's3-image-optimizer' ),
+			)
+		);
 		wp_enqueue_style( 'jquery-ui-progressbar', plugins_url( 'jquery-ui-1.10.1.custom.css', __FILE__ ) );
 	} else {
 		return;
 	}
 }
 
-// prepares the bulk operation and includes the javascript functions.
+/**
+ * Prepares the bulk URL operation and includes the javascript functions.
+ *
+ * @param string $hook The hook/suffix for the current page.
+ */
 function s3io_url_script( $hook ) {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	// Make sure we are being called from the proper page.
-	if ( 'media_page_s3io-url-display' != $hook ) {
+	if ( 'media_page_s3io-url-display' !== $hook ) {
 		return;
 	}
 	$upload_dir = wp_upload_dir();
@@ -535,6 +651,7 @@ function s3io_image_scan( $verbose = false ) {
 			$buckets = new WP_Error( 'exception', $e->getMessage() );
 		}
 		if ( is_wp_error( $buckets ) ) {
+			/* translators: %s: AWS error message */
 			$s3io_errors[] = sprintf( esc_html__( 'Could not list buckets: %s', 's3-image-optimizer' ), $buckets->get_error_message() );
 		} else {
 			foreach ( $buckets['Buckets'] as $aws_bucket ) {
@@ -553,9 +670,10 @@ function s3io_image_scan( $verbose = false ) {
 			$location = new WP_Error( 'exception', $e->getMessage() );
 		}
 		if ( is_wp_error( $location ) && ( ! defined( 'S3_IMAGE_OPTIMIZER_REGION' ) || ! S3_IMAGE_OPTIMIZER_REGION ) ) {
-				$s3io_errors[] = sprintf( esc_html__( 'Could not get bucket location for %1$s, error: %2$s. Will assume us-east-1 region for all buckets. You may set the region manually using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php.', 's3-image-optimizer' ), $bucket, $location->get_error_message() );
-				$region        = 'us-east-1';
-		} else {
+			/* translators: 1: bucket name 2: AWS error message */
+			$s3io_errors[] = sprintf( esc_html__( 'Could not get bucket location for %1$s, error: %2$s. Will assume us-east-1 region for all buckets. You may set the region manually using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php.', 's3-image-optimizer' ), $bucket, $location->get_error_message() );
+			$region        = 'us-east-1';
+		} elseif ( empty( get_option( 's3io_dospaces' ) ) ) {
 			if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 				$region = $location['Location'];
 			} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && S3_IMAGE_OPTIMIZER_REGION ) {
@@ -566,6 +684,7 @@ function s3io_image_scan( $verbose = false ) {
 			try {
 				$client->setRegion( $region );
 			} catch ( Exception $e ) {
+				/* translators: 1: bucket name 2: AWS error message */
 				$s3io_errors[] = sprintf( esc_html__( 'Could not set region for %1$s, error: %2$s. Will assume us-east-1 region.', 's3-image-optimizer' ), $bucket, $e->getMessage() );
 			}
 		}
@@ -578,8 +697,7 @@ function s3io_image_scan( $verbose = false ) {
 		$iterator_args = apply_filters( 's3io_scan_iterator_args', $iterator_args );
 
 		$iterator          = $client->getIterator( 'ListObjects', $iterator_args );
-		$query             = "SELECT path,image_size FROM $wpdb->s3io_images WHERE bucket LIKE '$bucket'";
-		$already_optimized = $wpdb->get_results( $query, ARRAY_A );
+		$already_optimized = $wpdb->get_results( $wpdb->prepare( "SELECT path,image_size FROM $wpdb->s3io_images WHERE bucket LIKE %s", $bucket ), ARRAY_A );
 		$optimized_list    = array();
 		foreach ( $already_optimized as $optimized ) {
 			$optimized_path                    = $optimized['path'];
@@ -605,6 +723,7 @@ function s3io_image_scan( $verbose = false ) {
 			if ( ! $skip_optimized || ! empty( $_REQUEST['s3io_force'] ) ) {
 				$images[] = "('$bucket','$path',$image_size)";
 				if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
+					/* translators: 1: image name 2: S3 bucket name */
 					WP_CLI::line( sprintf( __( 'Queueing %1$s in %2$s.', 's3-image-optimizer' ), $path, $bucket ) );
 				}
 				s3io_debug_message( "queuing $path in $bucket" );
@@ -614,7 +733,7 @@ function s3io_image_scan( $verbose = false ) {
 				// let's dump what we have so far to the db.
 				$image_count  = 0;
 				$insert_query = "INSERT INTO $wpdb->s3io_images (bucket,path,orig_size) VALUES" . implode( ',', $images );
-				$wpdb->query( $insert_query );
+				$wpdb->query( $insert_query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 				if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
 					WP_CLI::line( __( 'Saved queue to database.', 's3-image-optimizer' ) );
 					s3io_debug_message( 'saved queue to db' );
@@ -626,16 +745,18 @@ function s3io_image_scan( $verbose = false ) {
 	if ( ! empty( $images ) ) {
 		s3io_debug_message( 'saving queue to db' );
 		$insert_query = "INSERT INTO $wpdb->s3io_images (bucket,path,orig_size) VALUES" . implode( ',', $images );
-		$wpdb->query( $insert_query );
+		$wpdb->query( $insert_query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 	}
 	s3io_debug_message( "found $image_count images to optimize" );
 	return $image_count;
 }
 
+/**
+ * Display the bulk S3 optimization page for URLs.
+ */
 function s3io_url_display() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	global $wpdb;
-	// generate the WP spinner image for display
 	$loading_image = plugins_url( '/wpspin.gif', __FILE__ );
 	?>
 	<div class="wrap">
@@ -661,7 +782,7 @@ function s3io_url_display() {
 			</div>
 		</div>
 		<form class="s3io-bulk-form">
-			<p><label for="s3io-delay" style="font-weight: bold"><?php esc_html_e( 'Choose how long to pause between images (in seconds, 0 = disabled)', 's3-image-optimizer' ); ?></label>&emsp;<input type="text" id="s3io-delay" name="s3io-delay" value="<?php if ( $delay = ewww_image_optimizer_get_option( 'ewww_image_optimizer_delay' ) ) { echo (int) $delay; } else { echo 0; } ?>"></p>
+			<p><label for="s3io-delay" style="font-weight: bold"><?php esc_html_e( 'Choose how long to pause between images (in seconds, 0 = disabled)', 's3-image-optimizer' ); ?></label>&emsp;<input type="text" id="s3io-delay" name="s3io-delay" value="<?php echo ( ewww_image_optimizer_get_option( 'ewww_image_optimizer_delay' ) ? (int) ewww_image_optimizer_get_option( 'ewww_image_optimizer_delay' ) : 0 ); ?>"></p>
 			<div id="s3io-delay-slider" style="width:50%"></div>
 		</form>
 		<div id="s3io-bulk-forms"><p class="s3io-bulk-info">
@@ -754,10 +875,20 @@ function s3io_bulk_display() {
 			<div id="s3io-delay-slider" style="width:50%"></div>
 		</form>
 		<div id="s3io-bulk-forms">
-			<p class="s3io-media-info s3io-bulk-info"><?php printf( esc_html__( 'There are %1$d images to be optimized.', 's3-image-optimizer' ), $image_count ); ?><br />
+			<p class="s3io-media-info s3io-bulk-info">
+		<?php
+		/* translators: %d: number of images */
+		printf( esc_html__( 'There are %d images to be optimized.', 's3-image-optimizer' ), $image_count );
+		?>
+			<br />
 			<?php esc_html_e( 'Previously optimized images will be skipped by default.', 's3-image-optimizer' ); ?></p>
 		<?php if ( ! empty( $last_run ) ) { ?>
-			<p id="s3io-last-run" class="s3io-bulk-info"><?php printf( esc_html__( 'Last optimization was completed on %1$s at %2$s and optimized %3$d images', 's3-image-optimizer' ), date( get_option( 'date_format' ), $last_run[0] ), date( get_option( 'time_format' ), $last_run[0] ), (int) $last_run[1] ); ?></p>
+			<p id="s3io-last-run" class="s3io-bulk-info">
+			<?php
+			/* translators: 1: date 2: time 3: number of images */
+			printf( esc_html__( 'Last optimization was completed on %1$s at %2$s and optimized %3$d images', 's3-image-optimizer' ), date( get_option( 'date_format' ), $last_run[0] ), date( get_option( 'time_format' ), $last_run[0] ), (int) $last_run[1] );
+			?>
+			</p>
 		<?php } ?>
 			<form id="s3io-start" class="s3io-bulk-form" method="post" action="">
 				<input id="s3io-first" type="submit" class="button-secondary action" value="<?php echo $button_text; ?>" />
@@ -789,7 +920,12 @@ function s3io_bulk_display() {
 			<?php
 	}
 	?>
-			<p id="s3io-table-info" class="s3io-bulk-info"<?php echo $display; ?>><?php printf( esc_html__( 'The optimizer keeps track of already optimized images to prevent re-optimization. There are %d images that have been optimized so far.', 's3-image-optimizer' ), $already_optimized ); ?></p>
+			<p id="s3io-table-info" class="s3io-bulk-info"<?php echo $display; ?>>
+			<?php
+			/* translators: %d: number of images */
+			printf( esc_html__( 'The optimizer keeps track of already optimized images to prevent re-optimization. There are %d images that have been optimized so far.', 's3-image-optimizer' ), $already_optimized );
+			?>
+			</p>
 			<form id="s3io-show-table" class="s3io-bulk-form" method="post" action=""<?php echo $display; ?>>
 				<button type="submit" class="button-secondary action"><?php esc_html_e( 'Show Optimized Images', 's3-image-optimizer' ); ?></button>
 			</form>
@@ -813,7 +949,9 @@ function s3io_bulk_display() {
 	<?php
 }
 
-// Find the number of optimized images in the s3io_images table.
+/**
+ * Find the number of optimized images in the s3io_images table.
+ */
 function s3io_table_count_optimized() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	global $wpdb;
@@ -825,7 +963,9 @@ function s3io_table_count_optimized() {
 	return $count;
 }
 
-// find the number of un-optimized images in the s3io_images table
+/**
+ * Find the number of un-optimized images in the s3io_images table.
+ */
 function s3io_table_count_pending() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	global $wpdb;
@@ -837,81 +977,107 @@ function s3io_table_count_pending() {
 	return $count;
 }
 
-// remove all un-optimized images from the s3io_images table
+/**
+ * Remove all un-optimized images from the s3io_images table.
+ */
 function s3io_table_delete_pending() {
 	global $wpdb;
 	$wpdb->query( "DELETE from $wpdb->s3io_images WHERE image_size IS NULL" );
 }
 
-// wipes out the s3io_images table to allow re-optimization
+/**
+ * Wipes out the s3io_images table to allow re-optimization.
+ */
 function s3io_table_truncate() {
 	global $wpdb;
 	$wpdb->query( "TRUNCATE TABLE $wpdb->s3io_images" );
 }
 
-// displays 50 records from the auxiliary images table
+/**
+ * Displays 50 records from the auxiliary images table.
+ */
 function s3io_table() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
-	// verify that an authorized user has called function
+	// Verify that an authorized user has called function.
 	if ( ! wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk' ) ) {
 		wp_die( esc_html__( 'Access token has expired, please reload the page.', 's3-image-optimizer' ) );
 	}
 	global $wpdb;
-	$offset = 50 * $_POST['s3io_offset'];
-	$query = "SELECT id,bucket,path,results,image_size FROM $wpdb->s3io_images WHERE image_size IS NOT NULL ORDER BY id DESC LIMIT $offset,50";
-	$already_optimized = $wpdb->get_results( $query, ARRAY_A );
+	$already_optimized = $wpdb->get_results( $wpdb->prepare( "SELECT id,bucket,path,results,image_size FROM $wpdb->s3io_images WHERE image_size IS NOT NULL ORDER BY id DESC LIMIT %d,50", 50 * (int) $_POST['s3io_offset'] ), ARRAY_A );
 	echo '<br /><table class="wp-list-table widefat media" cellspacing="0"><thead><tr><th>' . esc_html__( 'Bucket', 's3-image-optimizer' ) . '</th><th>' . esc_html__( 'Filename', 's3-image-optimizer' ) . '</th><th>' . esc_html__( 'Image Optimizer', 's3-image-optimizer' ) . '</th></tr></thead>';
 	$alternate = true;
 	foreach ( $already_optimized as $optimized_image ) {
 		$file_size = size_format( $optimized_image['image_size'], 2 );
 		$file_size = str_replace( '.00 B ', ' B', $file_size );
-?>		<tr<?php if ( $alternate ) { echo " class='alternate'"; } ?> id="s3io-image-<?php echo $optimized_image['id']; ?>">
+		?>
+		<tr<?php echo ( $alternate ? " class='alternate'" : '' ); ?> id="s3io-image-<?php echo $optimized_image['id']; ?>">
 			<td class='title'><?php echo esc_html( $optimized_image['bucket'] ); ?></td>
 			<td class='title'>...<?php echo esc_html( $optimized_image['path'] ); ?></td>
-			<td><?php echo esc_html( $optimized_image['results'] ) . ' <br>' . sprintf( esc_html__( 'Image Size: %s', 's3-image-optimizer' ), $file_size ); ?><br><a class="removeimage" onclick="s3ioRemoveImage( <?php echo (int) $optimized_image['id']; ?> )"><?php esc_html_e( 'Remove from table', 's3-image-optimizer' ); ?></a></td>
+			<td>
+				<?php
+				/* translators: %s: size of image, in bytes */
+				echo esc_html( $optimized_image['results'] ) . ' <br>' . sprintf( esc_html__( 'Image Size: %s', 's3-image-optimizer' ), $file_size );
+				?>
+				<br><a class="removeimage" onclick="s3ioRemoveImage( <?php echo (int) $optimized_image['id']; ?> )"><?php esc_html_e( 'Remove from table', 's3-image-optimizer' ); ?></a>
+			</td>
 		</tr>
-<?php		$alternate = ! $alternate;
+		<?php
+		$alternate = ! $alternate;
 	}
 	echo '</table>';
 	die();
 }
 
-// removes an image from the auxiliary images table
+/**
+ * Removes an image from the auxiliary images table.
+ */
 function s3io_table_remove() {
-	// verify that an authorized user has called function
+	// Verify that an authorized user has called function.
 	if ( ! wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk' ) ) {
 		wp_die( esc_html__( 'Access token has expired, please reload the page.', 's3-image-optimizer' ) );
 	}
 	global $wpdb;
 	if ( $wpdb->delete( $wpdb->s3io_images, array( 'id' => $_POST['s3io_image_id'] ) ) ) {
-		echo "1";
+		echo '1';
 	}
 	die();
 }
 
-// receives a path, results, optimized size, and an original size to insert into ewwwwio_images table
-// if this is a $new image, copy the result stored in the database
+/**
+ * Update a record in the database after optimization.
+ *
+ * @param string $path The location of the file.
+ * @param int    $opt_size The filesize of the optimized image.
+ * @param int    $orig_size The original filesize of the image.
+ * @param string $results_msg The human-readable result of optimization.
+ * @param int    $id The ID of the db record which we are about to update. Optional. Default to false.
+ * @param string $bucket The name of the bucket where the image is located. Optional. Default to empty string.
+ * @return string Result of the optimization.
+ */
 function s3io_table_update( $path, $opt_size, $orig_size, $results_msg, $id = false, $bucket = '' ) {
 	global $wpdb;
-	$opt_size = (int) $opt_size;
+
+	$opt_size  = (int) $opt_size;
 	$orig_size = (int) $orig_size;
-	$id = $id ? (int) $id : (bool) $id;
+	$id        = $id ? (int) $id : (bool) $id;
+
 	if ( $opt_size >= $orig_size ) {
 		$results_msg = __( 'No savings', 's3-image-optimizer' );
 		s3io_debug_message( 's3io: no savings' );
 		if ( $id ) {
 			s3io_debug_message( "s3io: looking for $id" );
-			$optimized_query = $wpdb->get_row("SELECT id,orig_size,results,path FROM $wpdb->s3io_images WHERE id = $id", ARRAY_A);
+			$optimized_query = $wpdb->get_row( $wpdb->prepare( "SELECT id,orig_size,results,path FROM $wpdb->s3io_images WHERE id = %d", $id ), ARRAY_A );
 			if ( $optimized_query && ! empty( $optimized_query['results'] ) ) {
 				s3io_debug_message( "s3io: found already optimized $id" );
 				return $optimized_query['results'];
 			}
-			// otherwise we need to store some stuff
-			// store info on the current image for future reference
-			$updated = $wpdb->update( $wpdb->s3io_images,
+			// Otherwise we need to store some stuff.
+			// Store info on the current image for future reference.
+			$updated = $wpdb->update(
+				$wpdb->s3io_images,
 				array(
 					'image_size' => $opt_size,
-					'results' => $results_msg,
+					'results'    => $results_msg,
 				),
 				array(
 					'id' => $id,
@@ -931,27 +1097,30 @@ function s3io_table_update( $path, $opt_size, $orig_size, $results_msg, $id = fa
 			}
 		}
 	} else {
-		// calculate how much space was saved
+		// Calculate how much space was saved.
 		$savings = $orig_size - $opt_size;
-		// convert it to human readable format
+		// Convert it to human readable format.
 		$savings_str = size_format( $savings, 1 );
-		// replace spaces and extra decimals with proper html entity encoding
+		// Replace spaces and extra decimals with proper html entity encoding.
 		$savings_str = str_replace( '.0 B ', ' B', $savings_str );
 		$savings_str = str_replace( ' ', '&nbsp;', $savings_str );
-		// determine the percentage savings
+		// Determine the percentage savings.
 		$percent = 100 - ( 100 * ( $opt_size / $orig_size ) );
-		// use the percentage and the savings size to output a nice message to the user
-		$results_msg = sprintf( __( "Reduced by %01.1f%% (%s)", 's3-image-optimizer' ),
+		// Use the percentage and the savings size to output a nice message to the user.
+		$results_msg = sprintf(
+			/* translators: 1: percentage 2: space saved in bytes */
+			esc_html__( 'Reduced by %1$01.1f%% (%2$s)', 's3-image-optimizer' ),
 			$percent,
 			$savings_str
 		);
 		if ( $id ) {
 			s3io_debug_message( "s3io: updating $id" );
-			// store info on the current image for future reference
-			$updated = $wpdb->update( $wpdb->s3io_images,
+			// Store info on the current image for future reference.
+			$updated = $wpdb->update(
+				$wpdb->s3io_images,
 				array(
 					'image_size' => $opt_size,
-					'results' => $results_msg,
+					'results'    => $results_msg,
 				),
 				array(
 					'id' => $id,
@@ -972,13 +1141,12 @@ function s3io_table_update( $path, $opt_size, $orig_size, $results_msg, $id = fa
 		}
 	}
 	s3io_debug_message( "s3io: falling back to search by $path" );
-	$query = $wpdb->prepare("SELECT id,orig_size,results,path FROM $wpdb->s3io_images WHERE path = %s", $path);
-	$optimized_query = $wpdb->get_results( $query, ARRAY_A );
+	$optimized_query = $wpdb->get_results( $wpdb->prepare( "SELECT id,orig_size,results,path FROM $wpdb->s3io_images WHERE path = %s", $path ), ARRAY_A );
 	if ( ! empty( $optimized_query ) ) {
 		s3io_debug_message( 's3io: found results by path, checking...' );
 		foreach ( $optimized_query as $image ) {
 			s3io_debug_message( $image['path'] );
-			if ( $image['path'] == $path ) {
+			if ( $image['path'] === $path ) {
 				s3io_debug_message( 'found a match' );
 				$already_optimized = $image;
 			}
@@ -988,11 +1156,12 @@ function s3io_table_update( $path, $opt_size, $orig_size, $results_msg, $id = fa
 		s3io_debug_message( 'returning results without update' );
 		return $already_optimized['results'];
 	}
-	// store info on the current image for future reference
-	$updated = $wpdb->update( $wpdb->s3io_images,
+	// Store info on the current image for future reference.
+	$updated = $wpdb->update(
+		$wpdb->s3io_images,
 		array(
 			'image_size' => $opt_size,
-			'results' => $results_msg,
+			'results'    => $results_msg,
 		),
 		array(
 			'id' => $already_optimized['id'],
@@ -1011,13 +1180,14 @@ function s3io_table_update( $path, $opt_size, $orig_size, $results_msg, $id = fa
 		return $results_msg;
 	}
 	s3io_debug_message( 'no existing records found, inserting new one' );
-	$inserted = $wpdb->insert( $wpdb->s3io_images,
+	$inserted = $wpdb->insert(
+		$wpdb->s3io_images,
 		array(
-			'bucket' => $bucket,
-			'path' => $path,
-			'results' => $results_msg,
+			'bucket'     => $bucket,
+			'path'       => $path,
+			'results'    => $results_msg,
 			'image_size' => $opt_size,
-			'orig_size' => $orig_size,
+			'orig_size'  => $orig_size,
 		),
 		array(
 			'%s',
@@ -1034,11 +1204,13 @@ function s3io_table_update( $path, $opt_size, $orig_size, $results_msg, $id = fa
 	return $results_msg;
 }
 
-// called by javascript to initialize some output
+/**
+ * Called by javascript to initialize the bulk output.
+ */
 function s3io_bulk_init() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	$output = array();
-	// verify that an authorized user has started the optimizer
+	// Verify that an authorized user has started the optimizer.
 	$permissions = apply_filters( 'ewww_image_optimizer_bulk_permissions', '' );
 	if ( ! wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk' ) || ! current_user_can( $permissions ) ) {
 		$output['error'] = esc_html__( 'Access token has expired, please reload the page.', 's3-image-optimizer' );
@@ -1046,21 +1218,25 @@ function s3io_bulk_init() {
 		die();
 	}
 	session_write_close();
-	// store the time and number of images for later display
+	// Store the time and number of images for later display.
 	update_option( 's3io_last_run', array( time(), s3io_table_count_pending() ) );
 	update_option( 's3io_resume', true, false );
-	// let the user know that we are beginning
-	// generate the WP spinner image for display
+	// Generate the WP spinner image for display.
 	$loading_image = plugins_url( '/wpspin.gif', __FILE__ );
 	global $wpdb;
 	$image_record = $wpdb->get_row( "SELECT path FROM $wpdb->s3io_images WHERE image_size IS NULL LIMIT 1", ARRAY_A );
-	// let the user know that we are beginning
-	$output['results'] = "<p>" . esc_html__( 'Optimizing', 's3-image-optimizer' ) . " <b>" . esc_html( $image_record['path'] ) . "</b>&nbsp;<img src='$loading_image' alt='loading'/></p>";
+	// Let the user know that we are beginning.
+	$output['results'] = '<p>' . esc_html__( 'Optimizing', 's3-image-optimizer' ) . ' <b>' . esc_html( $image_record['path'] ) . "</b>&nbsp;<img src='$loading_image' alt='loading'/></p>";
 	echo json_encode( $output );
 	die();
 }
 
-// called by javascript to process each image in the loop
+/**
+ * Called by javascript to process each image in the loop.
+ *
+ * @param bool $auto True if this is called from a non-JS process. Optional. Default false.
+ * @param bool $verbose True to output extra information. Optional. Default false.
+ */
 function s3io_bulk_loop( $auto = false, $verbose = false ) {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	$output = array();
@@ -1074,21 +1250,21 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 	if ( ! $auto ) {
 		// Find out if our nonce is on it's last leg/tick.
 		$tick = wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk' );
-		if ( 2 == $tick ) {
+		if ( 2 === (int) $tick ) {
 			$output['new_nonce'] = wp_create_nonce( 's3io-bulk' );
 		} else {
 			$output['new_nonce'] = '';
 		}
 	}
-	// retrieve the time when the optimizer starts
+	// Retrieve the time when the optimizer starts.
 	$started = microtime( true );
 	if ( ewww_image_optimizer_stl_check() && ini_get( 'max_execution_time' ) < 60 ) {
-		set_time_limit ( 0 );
+		set_time_limit( 0 );
 	}
 	global $wpdb;
 	$image_record = $wpdb->get_row( "SELECT id,bucket,path,orig_size FROM $wpdb->s3io_images WHERE image_size IS NULL LIMIT 1", ARRAY_A );
-	$upload_dir = wp_upload_dir();
-	$upload_dir = trailingslashit( $upload_dir['basedir'] ) . 's3io/' . sanitize_file_name( $image_record['bucket'] ) . '/';
+	$upload_dir   = wp_upload_dir();
+	$upload_dir   = trailingslashit( $upload_dir['basedir'] ) . 's3io/' . sanitize_file_name( $image_record['bucket'] ) . '/';
 	global $s3io_amazon_web_services;
 	try {
 		$aws = $s3io_amazon_web_services->get_client();
@@ -1097,9 +1273,11 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 	}
 	$client = $aws->get( 'S3' );
 	try {
-		$location = $client->getBucketLocation( array(
-			'Bucket' => $image_record['bucket'],
-		) );
+		$location = $client->getBucketLocation(
+			array(
+				'Bucket' => $image_record['bucket'],
+			)
+		);
 	} catch ( Exception $e ) {
 		$location = new WP_Error( 'exception', $e->getMessage() );
 	}
@@ -1110,10 +1288,12 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 	} else {
 		$region = 'us-east-1';
 	}
-	try {
-		$client->setRegion( $region );
-	} catch ( Exception $e ) {
-//		$s3io_errors[] = sprintf( esc_html__( 'Could not set region for %s, error: %s. Will assume us-east-1 region.', 's3-image-optimizer' ), $bucket, $e->getMessage() );
+	if ( empty( get_option( 's3io_dospaces' ) ) ) {
+		try {
+			$client->setRegion( $region );
+		} catch ( Exception $e ) {
+			// $s3io_errors[] = sprintf( esc_html__( 'Could not set region for %s, error: %s. Will assume us-east-1 region.', 's3-image-optimizer' ), $bucket, $e->getMessage() );
+		}
 	}
 	$filename = $upload_dir . $image_record['path'];
 	$full_dir = dirname( $filename );
@@ -1121,11 +1301,13 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 		mkdir( $full_dir, 0777, true );
 	}
 	try {
-		$fetch_result = $client->getObject( array(
-			'Bucket' => $image_record['bucket'],
-			'Key' => $image_record['path'],
-			'SaveAs' => $filename,
-		) );
+		$fetch_result = $client->getObject(
+			array(
+				'Bucket' => $image_record['bucket'],
+				'Key'    => $image_record['path'],
+				'SaveAs' => $filename,
+			)
+		);
 	} catch ( Exception $e ) {
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
 			WP_CLI::error( "Fetch failed for bucket: {$image_record['bucket']}, path: {$image_record['path']}, message:" . $e->getMessage() );
@@ -1137,7 +1319,7 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 	}
 	// Make sure EWWW I.O. doesn't do anything weird like skipping images or generating webp.
 	$_REQUEST['ewww_force'] = true;
-	$webp = ewww_image_optimizer_get_option( 'ewww_image_optimizer_webp' );
+	$webp                   = ewww_image_optimizer_get_option( 'ewww_image_optimizer_webp' );
 	ewww_image_optimizer_set_option( 'ewww_image_optimizer_webp', false );
 	if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::line( "About to optimize $filename" );
@@ -1165,17 +1347,19 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 		if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
 			WP_CLI::line( "About to re-upload $filename" );
 		}
-		// re-upload to S3
+		// Re-upload to S3.
 		try {
-			$client->putObject( array(
-				'Bucket' => $image_record['bucket'],
-				'Key' => $image_record['path'],
-				'SourceFile' => $filename,
-				'ACL' => 'public-read',
-				'ContentType' => $fetch_result['ContentType'],
-				'CacheControl' => 'max-age=31536000',
-				'Expires' => date( 'D, d M Y H:i:s O', time() + 31536000 ),
-			) );
+			$client->putObject(
+				array(
+					'Bucket'       => $image_record['bucket'],
+					'Key'          => $image_record['path'],
+					'SourceFile'   => $filename,
+					'ACL'          => 'public-read',
+					'ContentType'  => $fetch_result['ContentType'],
+					'CacheControl' => 'max-age=31536000',
+					'Expires'      => date( 'D, d M Y H:i:s O', time() + 31536000 ),
+				)
+			);
 		} catch ( Exception $e ) {
 			if ( defined( 'WP_CLI' ) && WP_CLI ) {
 				WP_CLI::error( "Put failed for bucket: {$image_record['bucket']}, path: {$image_record['path']}, message:" . $e->getMessage() );
@@ -1191,44 +1375,47 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 	}
 	unlink( $filename );
 	s3io_table_update( $image_record['path'], $new_size, $fetch_result['ContentLength'], $results[1], $image_record['id'] );
-	// make sure ewww doesn't keep a record of these files
-	$query = $wpdb->prepare( "DELETE FROM $wpdb->ewwwio_images WHERE path = %s", $filename );
-	$wpdb->query( $query );
+	// Make sure ewww doesn't keep a record of these files.
+	$wpdb->query( $wpdb->prepare( "DELETE FROM $wpdb->ewwwio_images WHERE path = %s", $filename ) );
 	if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
-		WP_CLI::line( "Updated database records." );
+		WP_CLI::line( 'Updated database records.' );
 	}
 	ewww_image_optimizer_debug_log();
 	if ( ! $auto ) {
-		// output the path
-		$output['results'] = sprintf( "<p>" . esc_html__( 'Optimized image:', 's3-image-optimizer' ) . " <strong>%s</strong><br>", esc_html( $image_record['path'] ) );
-		// tell the user what the results were for the original image
-		$output['results'] .=  esc_html( $results[1] ) . '<br>';
-		// calculate how much time has elapsed since we started
+		// Output the path.
+		$output['results']  = sprintf( '<p>' . esc_html__( 'Optimized image:', 's3-image-optimizer' ) . ' <strong>%s</strong><br>', esc_html( $image_record['path'] ) );
+		$output['results'] .= esc_html( $results[1] ) . '<br>';
+		// Calculate how much time has elapsed since we started.
 		$elapsed = microtime( true ) - $started;
-		// output how much time has elapsed since we started
-		$output['results'] .= sprintf( esc_html__( 'Elapsed: %.3f seconds', 's3-image-optimizer' ) . "</p>", $elapsed);
+		// Output how much time has elapsed since we started.
+		/* translators: %f: time in seconds */
+		$output['results'] .= sprintf( esc_html__( 'Elapsed: %.3f seconds', 's3-image-optimizer' ) . '</p>', $elapsed );
 
-		// lookup the next image to optimize
+		// Lookup the next image to optimize.
 		$image_record = $wpdb->get_row( "SELECT path FROM $wpdb->s3io_images WHERE image_size IS NULL LIMIT 1", ARRAY_A );
 		if ( ! empty( $image_record ) ) {
-			$loading_image = plugins_url( '/wpspin.gif', __FILE__ );
-			$output['next_file'] = "<p>" . esc_html__( 'Optimizing', 's3-image-optimizer' ) . " <b>" . esc_html( $image_record['path'] ) . "</b>&nbsp;<img src='$loading_image' alt='loading'/></p>";
+			$loading_image       = plugins_url( '/wpspin.gif', __FILE__ );
+			$output['next_file'] = '<p>' . esc_html__( 'Optimizing', 's3-image-optimizer' ) . ' <b>' . esc_html( $image_record['path'] ) . "</b>&nbsp;<img src='$loading_image' alt='loading'/></p>";
 		}
 		echo json_encode( $output );
 		die();
 	} elseif ( defined( 'WP_CLI' ) && WP_CLI ) {
-		// calculate how much time has elapsed since we started
 		$elapsed = microtime( true ) - $started;
-		WP_CLI::line( __( 'Optimized image:', 's3-image-optimizer' ) . " " . $image_record['path'] );
+		WP_CLI::line( __( 'Optimized image:', 's3-image-optimizer' ) . ' ' . $image_record['path'] );
 		WP_CLI::line( $results[1] );
-		WP_CLI::line( sprintf( __( 'Elapsed: %.3f seconds', 's3-image-optimizer' ) . "</p>", $elapsed) );
+		/* translators: %f: time in seconds */
+		WP_CLI::line( sprintf( __( 'Elapsed: %.3f seconds', 's3-image-optimizer' ) . '</p>', $elapsed ) );
 	}
 }
 
-// called by javascript to cleanup after ourselves
+/**
+ * Called by bulk process to cleanup after ourselves.
+ *
+ * @param bool $auto True if this is a wp-cli or automatic process (non JS). Optional. Default false.
+ */
 function s3io_bulk_cleanup( $auto = false ) {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
-	// verify that an authorized user has started the optimizer
+	// Verify that an authorized user has started the optimizer.
 	$permissions = apply_filters( 'ewww_image_optimizer_bulk_permissions', '' );
 	if ( ! $auto && ( ! wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-bulk' ) || ! current_user_can( $permissions ) ) ) {
 		wp_die( esc_html__( 'Access denied.', 's3-image-optimizer' ) );
@@ -1237,16 +1424,18 @@ function s3io_bulk_cleanup( $auto = false ) {
 	update_option( 's3io_last_run', array( time(), $stored_last[1] ) );
 	update_option( 's3io_resume', '', false );
 	if ( ! $auto ) {
-		// and let the user know we are done
 		echo '<p><b>' . esc_html__( 'Finished', 's3-image-optimizer' ) . '</b></p>';
 		die();
 	}
 }
 
+/**
+ * Run optimization for an image from the bulk URL process.
+ */
 function s3io_url_loop() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	$output = array();
-	// verify that an authorized user has started the optimizer
+	// Verify that an authorized user has started the optimizer.
 	$permissions = apply_filters( 'ewww_image_optimizer_bulk_permissions', '' );
 	if ( ! wp_verify_nonce( $_REQUEST['s3io_wpnonce'], 's3io-url' ) || ! current_user_can( $permissions ) ) {
 		$output['error'] = esc_html__( 'Access token has expired, please reload the page.', 's3-image-optimizer' );
@@ -1255,14 +1444,14 @@ function s3io_url_loop() {
 	}
 	$started = microtime( true );
 	if ( ewww_image_optimizer_stl_check() && ini_get( 'max_execution_time' ) < 60 ) {
-		set_time_limit ( 0 );
+		set_time_limit( 0 );
 	}
 	if ( empty( $_REQUEST['s3io_url'] ) ) {
 		$output['error'] = esc_html__( 'No URL supplied', 's3io-image-optimizer' );
 		echo json_encode( $output );
 		die();
 	}
-	$url = filter_var( $_REQUEST['s3io_url'], FILTER_SANITIZE_URL);
+	$url = filter_var( $_REQUEST['s3io_url'], FILTER_SANITIZE_URL );
 	$url = filter_var( $url, FILTER_VALIDATE_URL, array( FILTER_FLAG_HOST_REQUIRED, FILTER_FLAG_PATH_REQUIRED ) );
 	if ( ! empty( $url ) ) {
 		$url_args = s3io_get_args_from_url( $_REQUEST['s3io_url'] );
@@ -1273,8 +1462,8 @@ function s3io_url_loop() {
 		die();
 	}
 	$url_args['path'] = ltrim( $url_args['path'], '/' );
-	$upload_dir = wp_upload_dir();
-	$upload_dir = trailingslashit( $upload_dir['basedir'] ) . 's3io/' . sanitize_file_name( $image_record['bucket'] ) . '/';
+	$upload_dir       = wp_upload_dir();
+	$upload_dir       = trailingslashit( $upload_dir['basedir'] ) . 's3io/' . sanitize_file_name( $url_args['bucket'] ) . '/';
 	global $s3io_amazon_web_services;
 	try {
 		$aws = $s3io_amazon_web_services->get_client();
@@ -1283,9 +1472,11 @@ function s3io_url_loop() {
 	}
 	$client = $aws->get( 'S3' );
 	try {
-		$location = $client->getBucketLocation( array(
-			'Bucket' => $url_args['bucket'],
-		) );
+		$location = $client->getBucketLocation(
+			array(
+				'Bucket' => $url_args['bucket'],
+			)
+		);
 	} catch ( Exception $e ) {
 		$location = new WP_Error( 'exception', $e->getMessage() );
 	}
@@ -1296,25 +1487,30 @@ function s3io_url_loop() {
 	} else {
 		$region = 'us-east-1';
 	}
-	try {
-		$client->setRegion( $region );
-	} catch ( Exception $e ) {
+	if ( empty( get_option( 's3io_dospaces' ) ) ) {
+		try {
+			$client->setRegion( $region );
+		} catch ( Exception $e ) {
+			// Do nothing, because we don't have a way to throw errors here.
+		}
 	}
 	$filename = $upload_dir . $url_args['path'];
 	$full_dir = dirname( $filename );
 	if ( ! is_dir( $full_dir ) ) {
 		mkdir( $full_dir, 0777, true );
 	}
-	$fetch_result = $client->getObject( array(
-		'Bucket' => $url_args['bucket'],
-		'Key' => $url_args['path'],
-		'SaveAs' => $filename,
-	) );
-	// make sure EWWW I.O. doesn't do anything weird like skipping images or generating webp
+	$fetch_result = $client->getObject(
+		array(
+			'Bucket' => $url_args['bucket'],
+			'Key'    => $url_args['path'],
+			'SaveAs' => $filename,
+		)
+	);
+	// Make sure EWWW I.O. doesn't do anything weird like skipping images or generating webp.
 	$_REQUEST['ewww_force'] = true;
-	$webp = ewww_image_optimizer_get_option( 'ewww_image_optimizer_webp' );
+	$webp                   = ewww_image_optimizer_get_option( 'ewww_image_optimizer_webp' );
 	ewww_image_optimizer_set_option( 'ewww_image_optimizer_webp', false );
-	// do the optimization for the current image
+	// Do the optimization for the current image.
 	$results = ewww_image_optimizer( $filename );
 	unset( $_REQUEST['ewww_force'] );
 	ewww_image_optimizer_set_option( 'ewww_image_optimizer_webp', $webp );
@@ -1327,37 +1523,41 @@ function s3io_url_loop() {
 	}
 	$new_size = filesize( $filename );
 	if ( $new_size < $fetch_result['ContentLength'] ) {
-		// re-upload to S3
-		$client->putObject( array(
-			'Bucket' => $url_args['bucket'],
-			'Key' => $url_args['path'],
-			'SourceFile' => $filename,
-			'ACL' => 'public-read',
-			'ContentType' => $fetch_result['ContentType'],
-			'CacheControl' => 'max-age=31536000',
-			'Expires' => date( 'D, d M Y H:i:s O', time() + 31536000 ),
-		) );
+		// Re-upload to S3.
+		$client->putObject(
+			array(
+				'Bucket'       => $url_args['bucket'],
+				'Key'          => $url_args['path'],
+				'SourceFile'   => $filename,
+				'ACL'          => 'public-read',
+				'ContentType'  => $fetch_result['ContentType'],
+				'CacheControl' => 'max-age=31536000',
+				'Expires'      => date( 'D, d M Y H:i:s O', time() + 31536000 ),
+			)
+		);
 	}
 	unlink( $filename );
 	s3io_table_update( $url_args['path'], $new_size, $fetch_result['ContentLength'], $results[1], false, $url_args['bucket'] );
-	// make sure ewww doesn't keep a record of these files
+	// Make sure ewww doesn't keep a record of these files.
 	global $wpdb;
-	$query = $wpdb->prepare( "DELETE FROM $wpdb->ewwwio_images WHERE path = %s", $filename );
-	$wpdb->query( $query );
+	$wpdb->query( $wpdb->prepare( "DELETE FROM $wpdb->ewwwio_images WHERE path = %s", $filename ) );
 	ewww_image_optimizer_debug_log();
-	// output the path
-	$output['results'] = sprintf( "<p>" . esc_html__( 'Optimized image:', 's3-image-optimizer' ) . " <strong>%s</strong><br>", esc_html( $url_args['path'] ) );
-	// tell the user what the results were for the original image
-	$output['results'] .=  esc_html( $results[1] ) . '<br>';
-	// calculate how much time has elapsed since we started
-	$elapsed = microtime( true ) - $started;
-	// output how much time has elapsed since we started
-	$output['results'] .= sprintf( esc_html__( 'Elapsed: %.3f seconds', 's3-image-optimizer' ) . "</p>", $elapsed);
+	$elapsed            = microtime( true ) - $started;
+	$output['results']  = sprintf( '<p>' . esc_html__( 'Optimized image:', 's3-image-optimizer' ) . ' <strong>%s</strong><br>', esc_html( $url_args['path'] ) );
+	$output['results'] .= esc_html( $results[1] ) . '<br>';
+	/* translators: %f: time in seconds */
+	$output['results'] .= sprintf( esc_html__( 'Elapsed: %.3f seconds', 's3-image-optimizer' ) . '</p>', $elapsed );
 
 	echo json_encode( $output );
 	die();
 }
 
+/**
+ * Takes an S3/Spaces URL and gets the bucket and path for an object.
+ *
+ * @param string $url The url of the image on S3/Spaces.
+ * @return array The bucket and path of the object.
+ */
 function s3io_get_args_from_url( $url ) {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	$urlinfo = parse_url( $url );
@@ -1366,11 +1566,17 @@ function s3io_get_args_from_url( $url ) {
 	}
 	if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && S3_IMAGE_OPTIMIZER_BUCKET ) {
 		if ( strpos( $urlinfo['host'], S3_IMAGE_OPTIMIZER_BUCKET ) !== false ) {
-			return array( 'bucket' => S3_IMAGE_OPTIMIZER_BUCKET, 'path' => $urlinfo['path'] );
+			return array(
+				'bucket' => S3_IMAGE_OPTIMIZER_BUCKET,
+				'path'   => $urlinfo['path'],
+			);
 		}
 		if ( strpos( $urlinfo['path'], S3_IMAGE_OPTIMIZER_BUCKET ) !== false ) {
 			$path = str_replace( '/' . S3_IMAGE_OPTIMIZER_BUCKET, '', $urlinfo['path'] );
-			return array( 'bucket' => S3_IMAGE_OPTIMIZER_BUCKET, 'path' => $path );
+			return array(
+				'bucket' => S3_IMAGE_OPTIMIZER_BUCKET,
+				'path'   => $path,
+			);
 		}
 	}
 	global $s3io_amazon_web_services;
@@ -1386,7 +1592,7 @@ function s3io_get_args_from_url( $url ) {
 		$buckets = new WP_Error( 'exception', $e->getMessage() );
 	}
 
-	// if retrieving buckets from AWS failed, then we use the bucketlist option, otherwise we build the bucket list from AWS
+	// If retrieving buckets from AWS failed, then we use the bucketlist option, otherwise we build the bucket list from AWS.
 	if ( is_wp_error( $buckets ) ) {
 		$bucket_list = get_option( 's3io_bucketlist' );
 	} else {
@@ -1396,31 +1602,39 @@ function s3io_get_args_from_url( $url ) {
 		}
 	}
 
-	// if we don't have a list of buckets, we can't do much more here
+	// If we don't have a list of buckets, we can't do much more here.
 	if ( empty( $bucket_list ) || ! is_array( $bucket_list ) ) {
 		return false;
 	}
 
 	foreach ( $bucket_list as $aws_bucket ) {
 		if ( strpos( $urlinfo['host'], $aws_bucket ) !== false ) {
-			return array( 'bucket' => $aws_bucket, 'path' => $urlinfo['path'] );
+			return array(
+				'bucket' => $aws_bucket,
+				'path'   => $urlinfo['path'],
+			);
 		}
 		if ( strpos( $urlinfo['path'], $aws_bucket ) !== false ) {
 			$path = str_replace( '/' . $aws_bucket, '', $urlinfo['path'] );
-			return array( 'bucket' => $aws_bucket, 'path' => $path );
+			return array(
+				'bucket' => $aws_bucket,
+				'path'   => $path,
+			);
 		}
 	}
 
-	// otherwise, we must have a custom domain, so lets do a quick search for the attachment in all buckets
-	// doing it in a separate foreach, in case there are performance implications of switching the region in accounts with lots of buckets
+	// Otherwise, we must have a custom domain, so lets do a quick search for the attachment in all buckets.
+	// Doing it in a separate foreach, in case there are performance implications of switching the region in accounts with lots of buckets.
 	$key = ltrim( $urlinfo['path'], '/' );
 	foreach ( $bucket_list as $aws_bucket ) {
 		try {
-			$location = $client->getBucketLocation( array(
-				'Bucket' => $aws_bucket,
-			) );
+			$location = $client->getBucketLocation(
+				array(
+					'Bucket' => $aws_bucket,
+				)
+			);
 		} catch ( Exception $e ) {
-                        $location = new WP_Error( 'exception', $e->getMessage() );
+			$location = new WP_Error( 'exception', $e->getMessage() );
 		}
 		if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 			$region = $location['Location'];
@@ -1429,21 +1643,38 @@ function s3io_get_args_from_url( $url ) {
 		} else {
 			$region = 'us-east-1';
 		}
-		try {
-			$client->setRegion( $region );
-		} catch ( Exception $e ) {
+		if ( empty( get_option( 's3io_dospaces' ) ) ) {
+			try {
+				$client->setRegion( $region );
+			} catch ( Exception $e ) {
+				// Do nothing, because we don't have a way to throw errors here.
+			}
 		}
 		try {
-			$exists = $client->headObject( array( 'Bucket' => $aws_bucket, 'Key' => $key ) );
-		} catch( Exception $e ) {
+			$exists = $client->headObject(
+				array(
+					'Bucket' => $aws_bucket,
+					'Key'    => $key,
+				)
+			);
+		} catch ( Exception $e ) {
+			// Do nothing, because we don't have a way to throw errors here.
 		}
 		if ( $exists ) {
-			return array( 'bucket' => $aws_bucket, 'path' => $urlinfo['path'] );
+			return array(
+				'bucket' => $aws_bucket,
+				'path'   => $urlinfo['path'],
+			);
 		}
 	}
 	return false;
 }
 
+/**
+ * Send a message to the debug memory buffer (global).
+ *
+ * @param string $message A debugging message to add to the buffer.
+ */
 function s3io_debug_message( $message ) {
 	if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		WP_CLI::debug( $message );

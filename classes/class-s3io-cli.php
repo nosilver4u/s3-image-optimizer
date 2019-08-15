@@ -1,9 +1,17 @@
 <?php
+/**
+ * Class file for S3IO_CLI
+ *
+ * S3IO_CLI contains an extension for WP-CLI to enable bulk optimization of S3 buckets via command line.
+ *
+ * @package S3_Image_optimizer
+ */
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 /**
- * implements wp-cli extension for bulk optimizing
+ * Implements wp-cli extension for bulk optimizing.
  */
 class S3IO_CLI extends WP_CLI_Command {
 	/**
@@ -33,33 +41,35 @@ class S3IO_CLI extends WP_CLI_Command {
 	 *
 	 *     wp-cli s3io optimize 5 --force --reset --noprompt --verbose
 	 *
-	 *
-	 *
 	 * @synopsis [<delay>] [--force] [--reset] [--noprompt] [--verbose]
+	 *
+	 * @param array $args A numbered array of arguments provided via WP-CLI without option names.
+	 * @param array $assoc_args An array of named arguments provided via WP-CLI.
 	 */
 	function optimize( $args, $assoc_args ) {
 
 		// because NextGEN hasn't flushed it's buffers...
-		while( @ob_end_flush() );
+		while ( @ob_end_flush() ); // phpcs:ignore
 
 		if ( empty( $args[0] ) ) {
-			$delay = ewww_image_optimizer_get_option ( 'ewww_image_optimizer_delay' );
+			$delay = ewww_image_optimizer_get_option( 'ewww_image_optimizer_delay' );
 		} else {
 			$delay = $args[0];
 		}
 
 		if ( ! empty( $assoc_args['reset'] ) ) {
 			update_option( 's3io_resume', '' );
-			WP_CLI::line( __('Bulk status has been reset, starting from the beginning.', 's3-image-optimizer' ) );
+			WP_CLI::line( __( 'Bulk status has been reset, starting from the beginning.', 's3-image-optimizer' ) );
 		}
 
-		// check to see if the user has asked to reset (empty) the optimized images table
+		// check to see if the user has asked to reset (empty) the optimized images table.
 		if ( ! empty( $assoc_args['force'] ) ) {
-			WP_CLI::line( __('Forcing re-optimization of previously processed images.', 's3-image-optimizer' ) );
+			WP_CLI::line( __( 'Forcing re-optimization of previously processed images.', 's3-image-optimizer' ) );
 			s3io_table_truncate();
 		}
 
-		WP_CLI::line( sprintf( __('Optimizing with a %1$d second pause between images.', 's3-image-optimizer' ), $delay ) );
+		/* translators: %d: number of seconds */
+		WP_CLI::line( sprintf( __( 'Optimizing with a %d second pause between images.', 's3-image-optimizer' ), $delay ) );
 
 		// let's get started, shall we?
 		ewww_image_optimizer_admin_init();
@@ -73,8 +83,8 @@ class S3IO_CLI extends WP_CLI_Command {
 			}
 		}
 
-		// check the 'bulk resume' option
-		$resume = get_option( 's3io_resume' );
+		// check the 'bulk resume' option.
+		$resume  = get_option( 's3io_resume' );
 		$verbose = ( empty( $assoc_args['verbose'] ) ? false : true );
 
 		if ( empty( $resume ) ) {
@@ -86,9 +96,11 @@ class S3IO_CLI extends WP_CLI_Command {
 		$image_count = s3io_table_count_pending();
 
 		if ( empty( $assoc_args['noprompt'] ) ) {
-			WP_CLI::confirm( sprintf( __( 'There are %1$d images to be optimized.', 's3-image-optimizer' ), $image_count ) );
+			/* translators: %d: number of images */
+			WP_CLI::confirm( sprintf( __( 'There are %d images to be optimized.', 's3-image-optimizer' ), $image_count ) );
 		} else {
-			WP_CLI::line( sprintf( __( 'There are %1$d images to be optimized.', 's3-image-optimizer' ), $image_count ) );
+			/* translators: %d: number of images */
+			WP_CLI::line( sprintf( __( 'There are %d images to be optimized.', 's3-image-optimizer' ), $image_count ) );
 		}
 
 		update_option( 's3io_resume', true, false );
@@ -115,7 +127,7 @@ class S3IO_CLI extends WP_CLI_Command {
 		}
 		update_option( 's3io_resume', '', false );
 
-		// and let the user know we are done
+		// and let the user know we are done.
 		WP_CLI::success( __( 'Finished Optimization!', 's3-image-optimizer' ) );
 	}
 }

@@ -1,14 +1,27 @@
 <?php
+/**
+ * Class file for Amazon_Web_Services
+ *
+ * Implements AWS client connection via AWS PHP library.
+ *
+ * @package S3_Image_optimizer
+ */
 
 namespace S3IO;
 
 use S3IO\Aws2\Aws\Common\Aws;
 use Exception;
 
+/**
+ * Gathers access keys and connects to AWS.
+ */
 class Amazon_Web_Services {
 
 	/**
-	 * @var
+	 * The client object that stores the connection details.
+	 *
+	 * @access private
+	 * @var object $client
 	 */
 	private $client;
 
@@ -98,11 +111,13 @@ class Amazon_Web_Services {
 	 * @return string|false Constant name if defined, otherwise false
 	 */
 	public static function access_key_id_constant() {
-		return self::get_first_defined_constant( array(
-			'AS3CF_AWS_ACCESS_KEY_ID',
-			'DBI_AWS_ACCESS_KEY_ID',
-			'AWS_ACCESS_KEY_ID',
-		) );
+		return self::get_first_defined_constant(
+			array(
+				'AS3CF_AWS_ACCESS_KEY_ID',
+				'DBI_AWS_ACCESS_KEY_ID',
+				'AWS_ACCESS_KEY_ID',
+			)
+		);
 	}
 
 	/**
@@ -111,11 +126,13 @@ class Amazon_Web_Services {
 	 * @return string|false Constant name if defined, otherwise false
 	 */
 	public static function secret_access_key_constant() {
-		return self::get_first_defined_constant( array(
-			'AS3CF_AWS_SECRET_ACCESS_KEY',
-			'DBI_AWS_SECRET_ACCESS_KEY',
-			'AWS_SECRET_ACCESS_KEY',
-		) );
+		return self::get_first_defined_constant(
+			array(
+				'AS3CF_AWS_SECRET_ACCESS_KEY',
+				'DBI_AWS_SECRET_ACCESS_KEY',
+				'AWS_SECRET_ACCESS_KEY',
+			)
+		);
 	}
 
 	/**
@@ -124,19 +141,21 @@ class Amazon_Web_Services {
 	 * @return string|false Constant name if defined, otherwise false
 	 */
 	public static function use_ec2_iam_role_constant() {
-		return self::get_first_defined_constant( array(
-			'AS3CF_AWS_USE_EC2_IAM_ROLE',
-			'DBI_AWS_USE_EC2_IAM_ROLE',
-			'AWS_USE_EC2_IAM_ROLE',
-		) );
+		return self::get_first_defined_constant(
+			array(
+				'AS3CF_AWS_USE_EC2_IAM_ROLE',
+				'DBI_AWS_USE_EC2_IAM_ROLE',
+				'AWS_USE_EC2_IAM_ROLE',
+			)
+		);
 	}
 
 	/**
 	 * Instantiate a new AWS service client for the AWS SDK
 	 * using the defined AWS key and secret
 	 *
-	 * @return Aws
-	 * @throws Exception
+	 * @return Aws An AWS object with an established connection.
+	 * @throws Exception AWS configuration/connection error.
 	 */
 	function get_client() {
 		if ( $this->needs_access_keys() ) {
@@ -163,7 +182,7 @@ class Amazon_Web_Services {
 	/**
 	 * Get the first defined constant from the given list of constant names.
 	 *
-	 * @param array $constants
+	 * @param array $constants A list of constant names to check.
 	 *
 	 * @return string|false string constant name if defined, otherwise false if none are defined
 	 */
