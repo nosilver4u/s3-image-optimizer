@@ -9,8 +9,13 @@
 
 namespace S3IO;
 
-use S3IO\Aws2\Aws\Common\Aws;
-use Exception;
+// use S3IO\Aws3\Aws\CommandPool;.
+// use S3IO\Aws3\Aws\ResultInterface;.
+// use S3IO\Aws3\Aws\S3\Exception\S3Exception;.
+use S3IO\Aws3\Aws\S3\S3Client;
+use S3IO\Aws3\Aws\Sdk;
+
+// use Exception;.
 
 /**
  * Gathers access keys and connects to AWS.
@@ -24,6 +29,14 @@ class Amazon_Web_Services {
 	 * @var object $client
 	 */
 	private $client;
+
+	/**
+	 * The default region for S3 connections.
+	 *
+	 * @access protected
+	 * @var string $default_region
+	 */
+	protected $default_region = 'us-east-1';
 
 	/**
 	 * Whether or not IAM access keys are needed.
@@ -166,14 +179,20 @@ class Amazon_Web_Services {
 			$args = array();
 
 			if ( ! $this->use_ec2_iam_roles() ) {
-				$args = array(
+				$args['credentials'] = array(
 					'key'    => $this->get_access_key_id(),
 					'secret' => $this->get_secret_access_key(),
 				);
 			}
 
-			$args         = apply_filters( 'aws_get_client_args', $args );
-			$this->client = Aws::factory( $args );
+			$args             = apply_filters( 'aws_get_client_args', $args );
+			$this->aws_client = new Sdk( $args );
+
+			if ( empty( $args['region'] ) || $this->default_region === $args['region'] ) {
+				$this->client = $this->aws_client->createMultiRegionS3( $args );
+			} else {
+				$this->client = $this->aws_client->createS3( $args );
+			}
 		}
 
 		return $this->client;

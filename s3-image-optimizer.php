@@ -18,7 +18,7 @@ License: GPLv3
 /**
  * Constants
  */
-define( 'S3IO_VERSION', '2.0' );
+define( 'S3IO_VERSION', '2.01' );
 // This is the full path of the plugin file itself.
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // This is the path of the plugin file relative to the plugins/ folder.
@@ -35,7 +35,7 @@ add_filter( 'aws_get_client_args', 's3io_addv4_args', 8 );
 add_filter( 'aws_get_client_args', 's3io_dospaces' );
 
 require_once( plugin_dir_path( __FILE__ ) . 'classes/class-amazon-web-services.php' );
-require_once( plugin_dir_path( __FILE__ ) . 'vendor/Aws2/vendor/autoload.php' );
+require_once( plugin_dir_path( __FILE__ ) . 'vendor/Aws3/aws-autoloader.php' );
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	require_once( plugin_dir_path( __FILE__ ) . 'classes/class-s3io-cli.php' );
 }
@@ -221,6 +221,10 @@ function s3io_admin_background() {
 function s3io_addv4_args( $args ) {
 	$args['signature'] = 'v4';
 	$args['region']    = 'us-east-1';
+	$args['version']   = '2006-03-01';
+	if ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && S3_IMAGE_OPTIMIZER_REGION ) {
+		$args['region'] = S3_IMAGE_OPTIMIZER_REGION;
+	}
 	return $args;
 }
 
@@ -362,19 +366,18 @@ define( 'DBI_AWS_SECRET_ACCESS_KEY', '****************************************' 
 				</tr>
 				<?php
 				try {
-					$aws = $s3io_amazon_web_services->get_client();
+					$client = $s3io_amazon_web_services->get_client();
 				} catch ( Exception $e ) {
 					echo '</table><p>' . $e->getMessage() . '</p>';
 					echo "<p class='submit'><input type='submit' class='button-primary' value='" . esc_attr__( 'Save Changes', 's3-image-optimizer' ) . "' /></p>";
 					return;
 				}
-				if ( is_wp_error( $aws ) ) {
+				if ( is_wp_error( $client ) ) {
 					echo $aws->get_error_message();
 					echo '</table><p>' . $aws->get_error_message() . '</p>';
 					echo "<p class='submit'><input type='submit' class='button-primary' value='" . esc_attr__( 'Save Changes', 's3-image-optimizer' ) . "' /></p>";
 					return;
 				}
-				$client = $aws->get( 'S3' );
 				try {
 					$buckets = $client->listBuckets();
 				} catch ( Exception $e ) {
@@ -457,11 +460,10 @@ function s3io_bucketlist_sanitize( $input ) {
 	}
 	global $s3io_amazon_web_services;
 	try {
-		$aws = $s3io_amazon_web_services->get_client();
+		$client = $s3io_amazon_web_services->get_client();
 	} catch ( Exception $e ) {
 		return false;
 	}
-	$client = $aws->get( 'S3' );
 	try {
 		$buckets = $client->listBuckets();
 	} catch ( Exception $e ) {
@@ -637,12 +639,11 @@ function s3io_image_scan( $verbose = false ) {
 	}
 	global $s3io_amazon_web_services;
 	try {
-		$aws = $s3io_amazon_web_services->get_client();
+		$client = $s3io_amazon_web_services->get_client();
 	} catch ( Exception $e ) {
 		$s3io_errors[] = $e->getMessage();
 		return 0;
 	}
-	$client = $aws->get( 'S3' );
 	if ( empty( $bucket_list ) ) {
 		$bucket_list = array();
 		try {
@@ -669,26 +670,26 @@ function s3io_image_scan( $verbose = false ) {
 		} catch ( Exception $e ) {
 			$location = new WP_Error( 'exception', $e->getMessage() );
 		}
+		$region = 'us-east-1';
 		if ( is_wp_error( $location ) && ( ! defined( 'S3_IMAGE_OPTIMIZER_REGION' ) || ! S3_IMAGE_OPTIMIZER_REGION ) ) {
 			/* translators: 1: bucket name 2: AWS error message */
 			$s3io_errors[] = sprintf( esc_html__( 'Could not get bucket location for %1$s, error: %2$s. Will assume us-east-1 region for all buckets. You may set the region manually using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php.', 's3-image-optimizer' ), $bucket, $location->get_error_message() );
-			$region        = 'us-east-1';
 		} elseif ( empty( get_option( 's3io_dospaces' ) ) ) {
 			if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 				$region = $location['Location'];
 			} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && S3_IMAGE_OPTIMIZER_REGION ) {
 				$region = S3_IMAGE_OPTIMIZER_REGION;
-			} else {
-				$region = 'us-east-1';
 			}
 			try {
-				$client->setRegion( $region );
+				/* $client = $s3io_amazon_web_services->set_region( $region ); */
 			} catch ( Exception $e ) {
 				/* translators: 1: bucket name 2: AWS error message */
 				$s3io_errors[] = sprintf( esc_html__( 'Could not set region for %1$s, error: %2$s. Will assume us-east-1 region.', 's3-image-optimizer' ), $bucket, $e->getMessage() );
 			}
 		}
-		$iterator_args = array( 'Bucket' => $bucket );
+		$iterator_args = array(
+			'Bucket' => $bucket,
+		);
 		if ( defined( 'S3_IMAGE_OPTIMIZER_FOLDER' ) && S3_IMAGE_OPTIMIZER_FOLDER ) {
 			$iterator_args['Prefix'] = ltrim( S3_IMAGE_OPTIMIZER_FOLDER, '/' );
 		}
@@ -696,7 +697,8 @@ function s3io_image_scan( $verbose = false ) {
 		// In case you need to modify the arguments to the $client->getIterator() call before they are used.
 		$iterator_args = apply_filters( 's3io_scan_iterator_args', $iterator_args );
 
-		$iterator          = $client->getIterator( 'ListObjects', $iterator_args );
+		$iterator = $client->getIterator( 'ListObjects', $iterator_args );
+
 		$already_optimized = $wpdb->get_results( $wpdb->prepare( "SELECT path,image_size FROM $wpdb->s3io_images WHERE bucket LIKE %s", $bucket ), ARRAY_A );
 		$optimized_list    = array();
 		foreach ( $already_optimized as $optimized ) {
@@ -706,40 +708,45 @@ function s3io_image_scan( $verbose = false ) {
 		if ( ewww_image_optimizer_stl_check() ) {
 			set_time_limit( 0 );
 		}
-		foreach ( $iterator as $object ) {
-			$skip_optimized = false;
-			$path           = $object['Key'];
-			s3io_debug_message( "checking $path" );
-			if ( preg_match( '/\.(jpe?g|png|gif)$/i', $path ) ) {
-				$image_size = (int) $object['Size'];
-				if ( isset( $optimized_list[ $path ] ) && $optimized_list[ $path ] === $image_size ) {
-					s3io_debug_message( 'size matches db, skipping' );
-					$skip_optimized = true;
+		try {
+			foreach ( $iterator as $object ) {
+				$skip_optimized = false;
+				$path           = $object['Key'];
+				s3io_debug_message( "checking $path" );
+				if ( preg_match( '/\.(jpe?g|png|gif)$/i', $path ) ) {
+					$image_size = (int) $object['Size'];
+					if ( isset( $optimized_list[ $path ] ) && $optimized_list[ $path ] === $image_size ) {
+						s3io_debug_message( 'size matches db, skipping' );
+						$skip_optimized = true;
+					}
+				} else {
+					s3io_debug_message( 'not an image, skipping' );
+					continue;
 				}
-			} else {
-				s3io_debug_message( 'not an image, skipping' );
-				continue;
-			}
-			if ( ! $skip_optimized || ! empty( $_REQUEST['s3io_force'] ) ) {
-				$images[] = "('$bucket','$path',$image_size)";
-				if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
-					/* translators: 1: image name 2: S3 bucket name */
-					WP_CLI::line( sprintf( __( 'Queueing %1$s in %2$s.', 's3-image-optimizer' ), $path, $bucket ) );
+				if ( ! $skip_optimized || ! empty( $_REQUEST['s3io_force'] ) ) {
+					$images[] = "('$bucket','$path',$image_size)";
+					if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
+						/* translators: 1: image name 2: S3 bucket name */
+						WP_CLI::line( sprintf( __( 'Queueing %1$s in %2$s.', 's3-image-optimizer' ), $path, $bucket ) );
+					}
+					s3io_debug_message( "queuing $path in $bucket" );
+					$image_count++;
 				}
-				s3io_debug_message( "queuing $path in $bucket" );
-				$image_count++;
-			}
-			if ( $image_count > 5000 ) {
-				// let's dump what we have so far to the db.
-				$image_count  = 0;
-				$insert_query = "INSERT INTO $wpdb->s3io_images (bucket,path,orig_size) VALUES" . implode( ',', $images );
-				$wpdb->query( $insert_query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-				if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
-					WP_CLI::line( __( 'Saved queue to database.', 's3-image-optimizer' ) );
-					s3io_debug_message( 'saved queue to db' );
+				if ( $image_count > 5000 ) {
+					// let's dump what we have so far to the db.
+					$image_count  = 0;
+					$insert_query = "INSERT INTO $wpdb->s3io_images (bucket,path,orig_size) VALUES" . implode( ',', $images );
+					$wpdb->query( $insert_query ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+					if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
+						WP_CLI::line( __( 'Saved queue to database.', 's3-image-optimizer' ) );
+						s3io_debug_message( 'saved queue to db' );
+					}
+					$images = array();
 				}
-				$images = array();
 			}
+		} catch ( Exception $e ) {
+			/* translators: 1: bucket name 2: AWS error message */
+			$s3io_errors[] = sprintf( esc_html__( 'Incorrect region for %1$s, please set the region using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php. Error: %2$s.', 's3-image-optimizer' ), $bucket, $e->getMessage() );
 		}
 	}
 	if ( ! empty( $images ) ) {
@@ -789,7 +796,7 @@ function s3io_url_display() {
 			<p class="s3io-media-info s3io-bulk-info"><?php esc_html_e( 'Previously optimized images will not be skipped.', 's3-image-optimizer' ); ?></p>
 			<form id="s3io-url-start" class="s3io-bulk-form" method="post" action="">
 				<p><label><?php esc_html_e( 'List images to be processed by URL (1 per line), for example:', 's3-image-optimizer' ); ?> https://ewww-sample.s3.amazonaws.com/test-bucket/uploads/2020/08/test-image.jpg<br><textarea id="s3io-url-image-queue" name="s3io-url-image-queue" style="resize:both; height: 300px; width: 60%;"></textarea></label></p>
-				<input id="s3io-first" type="submit" class="button-secondary action" value="<?php esc_attr_e( 'Start optimizing', 's3-image-optimizer' ); ?>" />
+				<input id="s3io-first" type="submit" class="button-primary action" value="<?php esc_attr_e( 'Start optimizing', 's3-image-optimizer' ); ?>" />
 			</form>
 		</div>
 	</div>
@@ -817,12 +824,6 @@ function s3io_bulk_display() {
 	$loading_image = plugins_url( '/wpspin.gif', __FILE__ );
 	// check the last time the auxiliary optimizer was run.
 	$last_run = get_option( 's3io_last_run' );
-	// set the timezone according to the blog settings.
-	$site_timezone = get_option( 'timezone_string' );
-	if ( empty( $site_timezone ) ) {
-		$site_timezone = 'UTC';
-	}
-	date_default_timezone_set( $site_timezone );
 	echo "\n";
 	?>
 	<div class="wrap">
@@ -886,13 +887,12 @@ function s3io_bulk_display() {
 			<p id="s3io-last-run" class="s3io-bulk-info">
 			<?php
 			/* translators: 1: date 2: time 3: number of images */
-			printf( esc_html__( 'Last optimization was completed on %1$s at %2$s and optimized %3$d images', 's3-image-optimizer' ), date( get_option( 'date_format' ), $last_run[0] ), date( get_option( 'time_format' ), $last_run[0] ), (int) $last_run[1] );
+			printf( esc_html__( 'Last optimization was completed on %1$s at %2$s and optimized %3$d images', 's3-image-optimizer' ), wp_date( get_option( 'date_format' ), $last_run[0] ), wp_date( get_option( 'time_format' ), $last_run[0] ), (int) $last_run[1] );
 			?>
 			</p>
 		<?php } ?>
 			<form id="s3io-start" class="s3io-bulk-form" method="post" action="">
-				<input id="s3io-first" type="submit" class="button-secondary action" value="<?php echo $button_text; ?>" />
-				<input id="s3io-again" type="submit" class="button-secondary action" style="display:none" value="<?php esc_attr_e( 'Optimize Again', 's3-image-optimizer' ); ?>" />
+				<input id="s3io-first" type="submit" class="button-primary action" value="<?php echo $button_text; ?>" />
 			</form>
 		<?php
 	}
@@ -1267,11 +1267,10 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 	$upload_dir   = trailingslashit( $upload_dir['basedir'] ) . 's3io/' . sanitize_file_name( $image_record['bucket'] ) . '/';
 	global $s3io_amazon_web_services;
 	try {
-		$aws = $s3io_amazon_web_services->get_client();
+		$client = $s3io_amazon_web_services->get_client();
 	} catch ( Exception $e ) {
 		die( json_encode( array( 'error' => $e->getMessage() ) ) );
 	}
-	$client = $aws->get( 'S3' );
 	try {
 		$location = $client->getBucketLocation(
 			array(
@@ -1281,16 +1280,15 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 	} catch ( Exception $e ) {
 		$location = new WP_Error( 'exception', $e->getMessage() );
 	}
+	$region = 'us-east-1';
 	if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 		$region = $location['Location'];
 	} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && S3_IMAGE_OPTIMIZER_REGION ) {
 		$region = S3_IMAGE_OPTIMIZER_REGION;
-	} else {
-		$region = 'us-east-1';
 	}
 	if ( empty( get_option( 's3io_dospaces' ) ) ) {
 		try {
-			$client->setRegion( $region );
+			// $client->setRegion( $region );
 		} catch ( Exception $e ) {
 			// $s3io_errors[] = sprintf( esc_html__( 'Could not set region for %s, error: %s. Will assume us-east-1 region.', 's3-image-optimizer' ), $bucket, $e->getMessage() );
 		}
@@ -1357,7 +1355,7 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 					'ACL'          => 'public-read',
 					'ContentType'  => $fetch_result['ContentType'],
 					'CacheControl' => 'max-age=31536000',
-					'Expires'      => date( 'D, d M Y H:i:s O', time() + 31536000 ),
+					'Expires'      => gmdate( 'D, d M Y H:i:s O', time() + 31536000 ),
 				)
 			);
 		} catch ( Exception $e ) {
@@ -1466,11 +1464,10 @@ function s3io_url_loop() {
 	$upload_dir       = trailingslashit( $upload_dir['basedir'] ) . 's3io/' . sanitize_file_name( $url_args['bucket'] ) . '/';
 	global $s3io_amazon_web_services;
 	try {
-		$aws = $s3io_amazon_web_services->get_client();
+		$client = $s3io_amazon_web_services->get_client();
 	} catch ( Exception $e ) {
 		die( json_encode( array( 'error' => $e->getMessage() ) ) );
 	}
-	$client = $aws->get( 'S3' );
 	try {
 		$location = $client->getBucketLocation(
 			array(
@@ -1480,16 +1477,15 @@ function s3io_url_loop() {
 	} catch ( Exception $e ) {
 		$location = new WP_Error( 'exception', $e->getMessage() );
 	}
+		$region = 'us-east-1';
 	if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 		$region = $location['Location'];
 	} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && S3_IMAGE_OPTIMIZER_REGION ) {
 		$region = S3_IMAGE_OPTIMIZER_REGION;
-	} else {
-		$region = 'us-east-1';
 	}
 	if ( empty( get_option( 's3io_dospaces' ) ) ) {
 		try {
-			$client->setRegion( $region );
+			// $client->setRegion( $region );
 		} catch ( Exception $e ) {
 			// Do nothing, because we don't have a way to throw errors here.
 		}
@@ -1532,7 +1528,7 @@ function s3io_url_loop() {
 				'ACL'          => 'public-read',
 				'ContentType'  => $fetch_result['ContentType'],
 				'CacheControl' => 'max-age=31536000',
-				'Expires'      => date( 'D, d M Y H:i:s O', time() + 31536000 ),
+				'Expires'      => gmdate( 'D, d M Y H:i:s O', time() + 31536000 ),
 			)
 		);
 	}
@@ -1581,11 +1577,10 @@ function s3io_get_args_from_url( $url ) {
 	}
 	global $s3io_amazon_web_services;
 	try {
-		$aws = $s3io_amazon_web_services->get_client();
+		$client = $s3io_amazon_web_services->get_client();
 	} catch ( Exception $e ) {
 		return false;
 	}
-	$client = $aws->get( 'S3' );
 	try {
 		$buckets = $client->listBuckets();
 	} catch ( Exception $e ) {
@@ -1636,16 +1631,15 @@ function s3io_get_args_from_url( $url ) {
 		} catch ( Exception $e ) {
 			$location = new WP_Error( 'exception', $e->getMessage() );
 		}
+			$region = 'us-east-1';
 		if ( ! is_wp_error( $location ) && ! empty( $location['Location'] ) ) {
 			$region = $location['Location'];
 		} elseif ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && S3_IMAGE_OPTIMIZER_REGION ) {
 			$region = S3_IMAGE_OPTIMIZER_REGION;
-		} else {
-			$region = 'us-east-1';
 		}
 		if ( empty( get_option( 's3io_dospaces' ) ) ) {
 			try {
-				$client->setRegion( $region );
+				// $client->setRegion( $region );
 			} catch ( Exception $e ) {
 				// Do nothing, because we don't have a way to throw errors here.
 			}
