@@ -11,11 +11,13 @@ jQuery(document).ready(function($) {
 		});
 	});
 	var s3io_attachments = s3io_vars.attachments;
+	var s3io_checked = 0;
 	var s3io_i = 0;
 	var s3io_k = 0;
 	var s3io_delay = 0;
-	// initialize the ajax actions 
+	// initialize the ajax actions
 	var s3io_init_action = 's3io_bulk_init';
+	var s3io_scan_action = 's3io_image_scan';
 	var s3io_loop_action = 's3io_bulk_loop';
 	var s3io_cleanup_action = 's3io_bulk_cleanup';
 	var s3io_init_data = {
@@ -75,7 +77,7 @@ jQuery(document).ready(function($) {
 				}
 			}
 	        })
-		.fail(function() { 
+		.fail(function() {
 			$('#s3io-bulk-loading').html('<p style="color: red"><b>' + s3io_vars.operation_interrupted + '</b></p>');
 		});
 		return false;
@@ -105,17 +107,17 @@ jQuery(document).ready(function($) {
 				else if ( response == 0 ) {
 					$('#s3io-bulk-loading').html('<p style="color: red"><b>' + s3io_vars.operation_stopped + '</b></p>');
 				}
-				else if ( s3io_response.results) {	
+				else if ( s3io_response.results) {
 					$('#s3io-bulk-status .inside').append( s3io_response.results );
 					if ( s3io_queue.length > 0 ) {
 						setTimeout( s3ioProcessImageByURL, s3io_delay * 1000);
 					} else {
 						$('#s3io-bulk-loading').html(s3io_vars.finished);
 						$('#s3io-bulk-stop').hide();
-					}	
+					}
 				}
 		        })
-			.fail(function() { 
+			.fail(function() {
 				if (s3io_error_counter == 0) {
 					$('#s3io-bulk-loading').html('<p style="color: red"><b>' + s3io_vars.operation_interrupted + '</b></p>');
 				} else {
@@ -128,20 +130,6 @@ jQuery(document).ready(function($) {
 				}
 			});
 	}
-/*	$('#import-start').submit(function() {
-		$('.bulk-info').hide();
-		$('#import-start').hide();
-	        $('#s3io-loading').show();
-		var import_init_data = {
-			action: import_init_action,
-			_wpnonce: s3io_vars._wpnonce,
-		};
-		$.post(ajaxurl, import_init_data, function(response) {
-			import_total = response;
-			bulkImport();
-		});
-		return false;
-	});	*/
 	$('#s3io-show-table').submit(function() {
 		var s3io_pointer = 0;
 		var s3io_total_pages = Math.ceil(s3io_vars.image_count / 50);
@@ -245,17 +233,63 @@ jQuery(document).ready(function($) {
 		$('.last-page').show();
 		return false;
 	});
+	$('#s3io-scan').submit(function() {
+		$('.s3io-bulk-form').hide();
+		$('.s3io-bulk-info').hide();
+		$('#s3io-bulk-loading').html(s3io_vars.starting_scan);
+		s3ioScanBuckets();
+		return false;
+	});
+	function s3ioScanBuckets() {
+	        var s3io_scan_data = {
+	                action: s3io_scan_action,
+			s3io_wpnonce: s3io_vars._wpnonce,
+	        };
+	        var s3io_jqxhr = $.post(ajaxurl, s3io_scan_data, function(response) {
+			var s3io_response = $.parseJSON(response);
+			if (s3io_response.error) {
+				$('#s3io-bulk-loading').html('<p style="color: red"><b>' + s3io_response.error + '</b></p>');
+			} else if (s3io_response.current) {
+				s3io_checked += s3io_response.completed;
+				$('#s3io-bulk-loading').html('<p>' + s3io_response.current + '<br>' + s3io_vars.completed_string + '</p>');
+				$('#s3io-completed-count').text(s3io_checked);
+				/*if (s3io_response.new_nonce) {
+					s3io_vars._wpnonce = s3io_response.new_nonce;
+				}*/
+				s3io_error_counter = 30;
+				s3ioScanBuckets();
+			} else {
+				if ( s3io_response.message ) {
+					$('#s3io-bulk-loading').html('');
+					$('#s3io-delay-slider-form').show();
+					$('#s3io-start').show();
+					$('#s3io-found-images').text(s3io_response.message);
+					$('#s3io-found-images').show();
+					s3io_attachments = s3io_response.pending;
+					s3io_error_counter = 30;
+				} else {
+					$('#s3io-bulk-loading').html('invalid response, check JS console');
+				}
+			}
+	        })
+		.fail(function() {
+			if (s3io_error_counter == 0) {
+				$('#s3io-bulk-loading').html('<p style="color: red"><b>' + s3io_vars.operation_interrupted + '</b></p>');
+			} else {
+				$('#s3io-bulk-loading').html('<p style="color: red"><b>' + s3io_vars.temporary_failure + ' ' + s3io_error_counter + '</b></p>');
+				s3io_error_counter--;
+				setTimeout(function() {
+					s3ioScanBuckets();
+				}, 1000);
+			}
+		});
+	}
 	$('#s3io-start').submit(function() {
 		s3ioStartOpt();
 		return false;
 	});
 	function s3ioStartOpt () {
 		s3io_k = 0;
-		/*$('#s3io-bulk-stop').submit(function() {
-			s3io_k = 9;
-			$('#s3io-bulk-stop').hide();
-			return false;
-		});*/
 		if ( ! $('#s3io-delay').val().match( /^[1-9][0-9]*$/) ) {
 			s3io_delay = 0;
 		} else {
@@ -264,7 +298,6 @@ jQuery(document).ready(function($) {
 		$('#s3io-bulk-stop').show();
 		$('.s3io-bulk-form').hide();
 		$('.s3io-bulk-info').hide();
-//		$('h2').hide();
 		$('#s3io-force-empty').hide();
 	        $.post(ajaxurl, s3io_init_data, function(response) {
 			var s3io_init_response = $.parseJSON(response);
@@ -274,7 +307,7 @@ jQuery(document).ready(function($) {
 			s3ioProcessImage();
 	        });
 	}
-	function s3ioProcessImage () {
+	function s3ioProcessImage() {
 	        var s3io_loop_data = {
 	                action: s3io_loop_action,
 			s3io_wpnonce: s3io_vars._wpnonce,
@@ -293,11 +326,9 @@ jQuery(document).ready(function($) {
 			}
 			else if ( response == 0 ) {
 				$('#s3io-bulk-loading').html('<p style="color: red"><b>' + s3io_vars.operation_stopped + '</b></p>');
-			}	
+			}
 			else if (s3io_i < s3io_attachments) {
 				$('#s3io-bulk-widgets').show();
-		//		$('#s3io-bulk-status h2').show();
-		//		$('#s3io-bulk-last h2').show();
 				if (s3io_response.results) {
 					$('#s3io-bulk-last .inside').html( s3io_response.results );
 					$('#s3io-bulk-status .inside').append( s3io_response.results );
@@ -326,7 +357,7 @@ jQuery(document).ready(function($) {
 			        });
 			}
 	        })
-		.fail(function() { 
+		.fail(function() {
 			if (s3io_error_counter == 0) {
 				$('#s3io-bulk-loading').html('<p style="color: red"><b>' + s3io_vars.operation_interrupted + '</b></p>');
 			} else {

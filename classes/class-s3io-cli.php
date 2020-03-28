@@ -27,15 +27,13 @@ class S3IO_CLI extends WP_CLI_Command {
 	 * optimized S3 images, there is no undo for this
 	 *
 	 * <reset>
-	 * : optional, start the optimizer back at the beginning instead of
-	 * resuming from last position
+	 * : optional, scan buckets again instead of resuming from last position
 	 *
 	 * <noprompt>
 	 * : do not prompt, just start optimizing
 	 *
 	 * <verbose>
-	 * : be extra noisy, which currently just means it will output filenames
-	 * as it scans your bucket
+	 * : be extra noisy, including details during the scan phase
 	 *
 	 * ## EXAMPLES
 	 *
@@ -92,12 +90,22 @@ class S3IO_CLI extends WP_CLI_Command {
 			WP_CLI::line( __( 'Scanning, this could take a while', 's3-image-optimizer' ) );
 			s3io_image_scan( $verbose );
 		}
+		global $s3io_errors;
+		if ( ! empty( $s3io_errors ) ) {
+			foreach ( $s3io_errors as $error_message ) {
+				WP_CLI::error( $error_message, false );
+			}
+			WP_CLI::halt( 1 );
+		}
 
 		$image_count = s3io_table_count_pending();
 
 		if ( empty( $assoc_args['noprompt'] ) ) {
-			/* translators: %d: number of images */
-			WP_CLI::confirm( sprintf( __( 'There are %d images to be optimized.', 's3-image-optimizer' ), $image_count ) );
+			WP_CLI::confirm(
+				/* translators: %d: number of images */
+				sprintf( __( 'There are %d images to be optimized.', 's3-image-optimizer' ), $image_count ) .
+				' ' . __( 'Continue?', 's3-image-optimizer' )
+			);
 		} else {
 			/* translators: %d: number of images */
 			WP_CLI::line( sprintf( __( 'There are %d images to be optimized.', 's3-image-optimizer' ), $image_count ) );
@@ -112,6 +120,7 @@ class S3IO_CLI extends WP_CLI_Command {
 			$image_count--;
 			$images_finished++;
 			WP_CLI::line( __( 'Optimized:', 's3-image-optimizer' ) . " $images_finished / $image_total" );
+			sleep( $delay );
 		}
 
 		// Just to make sure we cleared them all.
