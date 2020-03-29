@@ -137,8 +137,10 @@ class S3IO_CLI extends WP_CLI_Command {
 		}
 		update_option( 's3io_resume', '', false );
 
-		// and let the user know we are done.
-		WP_CLI::success( __( 'Finished Optimization!', 's3-image-optimizer' ) );
+		if ( $image_count ) {
+			// and let the user know we are done.
+			WP_CLI::success( __( 'Finished Optimization!', 's3-image-optimizer' ) );
+		}
 	}
 }
 
