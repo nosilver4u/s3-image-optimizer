@@ -9,9 +9,6 @@
 
 namespace S3IO;
 
-// use S3IO\Aws3\Aws\CommandPool;.
-// use S3IO\Aws3\Aws\ResultInterface;.
-// use S3IO\Aws3\Aws\S3\Exception\S3Exception;.
 use S3IO\Aws3\Aws\S3\S3Client;
 use S3IO\Aws3\Aws\Sdk;
 

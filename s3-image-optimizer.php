@@ -878,6 +878,18 @@ function s3io_image_scan( $verbose = false ) {
 						}
 						$image_count = 0;
 						$images      = array();
+					} elseif ( $scan_count >= 4000 && ! $wpcli ) {
+						s3io_debug_message( "stashing $path as last marker" );
+						update_option( 's3io_bucket_paginator', $path, false );
+						die(
+							json_encode(
+								array(
+									/* translators: %s: S3 bucket name */
+									'current'   => sprintf( esc_html__( 'Scanning bucket %s', 's3-image-optimizer' ), "<strong>$bucket</strong>" ),
+									'completed' => $scan_count, // Number of images scanned in this pass.
+								)
+							)
+						);
 					}
 				}
 			}

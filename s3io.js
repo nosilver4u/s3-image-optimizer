@@ -261,8 +261,10 @@ jQuery(document).ready(function($) {
 			} else {
 				if ( s3io_response.message ) {
 					$('#s3io-bulk-loading').html('');
-					$('#s3io-delay-slider-form').show();
-					$('#s3io-start').show();
+					if (s3io_response.pending > 0) {
+						$('#s3io-delay-slider-form').show();
+						$('#s3io-start').show();
+					}
 					$('#s3io-found-images').text(s3io_response.message);
 					$('#s3io-found-images').show();
 					s3io_attachments = s3io_response.pending;
