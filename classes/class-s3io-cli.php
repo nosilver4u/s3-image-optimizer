@@ -99,8 +99,9 @@ class S3IO_CLI extends WP_CLI_Command {
 		}
 
 		$image_count = s3io_table_count_pending();
-
-		if ( empty( $assoc_args['noprompt'] ) ) {
+		if ( ! $image_count ) {
+			WP_CLI::success( __( 'There is nothing left to optimize.', 's3-image-optimizer' ) );
+		} elseif ( empty( $assoc_args['noprompt'] ) ) {
 			WP_CLI::confirm(
 				/* translators: %d: number of images */
 				sprintf( __( 'There are %d images to be optimized.', 's3-image-optimizer' ), $image_count ) .
