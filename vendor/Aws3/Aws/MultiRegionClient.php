@@ -19,6 +19,8 @@ class MultiRegionClient implements \S3IO\Aws3\Aws\AwsClientInterface
     private $config;
     /** @var HandlerList */
     private $handlerList;
+    /** @var array */
+    private $aliases;
     public static function getArguments()
     {
         $args = array_intersect_key(\S3IO\Aws3\Aws\ClientResolver::getDefaultArguments(), ['service' => true, 'region' => true]);

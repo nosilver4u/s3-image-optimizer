@@ -2,14 +2,24 @@
 
 namespace S3IO\Aws3\Aws\Api\ErrorParser;
 
+use S3IO\Aws3\Aws\Api\Parser\JsonParser;
+use S3IO\Aws3\Aws\Api\Service;
+use S3IO\Aws3\Aws\Api\StructureShape;
+use S3IO\Aws3\Aws\CommandInterface;
 use S3IO\Aws3\Psr\Http\Message\ResponseInterface;
 /**
  * Parses JSON-REST errors.
  */
-class RestJsonErrorParser
+class RestJsonErrorParser extends \S3IO\Aws3\Aws\Api\ErrorParser\AbstractErrorParser
 {
     use JsonParserTrait;
-    public function __invoke(\S3IO\Aws3\Psr\Http\Message\ResponseInterface $response)
+    private $parser;
+    public function __construct(\S3IO\Aws3\Aws\Api\Service $api = null, \S3IO\Aws3\Aws\Api\Parser\JsonParser $parser = null)
+    {
+        parent::__construct($api);
+        $this->parser = $parser ?: new \S3IO\Aws3\Aws\Api\Parser\JsonParser();
+    }
+    public function __invoke(\S3IO\Aws3\Psr\Http\Message\ResponseInterface $response, \S3IO\Aws3\Aws\CommandInterface $command = null)
     {
         $data = $this->genericHandler($response);
         // Merge in error data from the JSON body
@@ -25,6 +35,9 @@ class RestJsonErrorParser
             $colon = strpos($code, ':');
             $data['code'] = $colon ? substr($code, 0, $colon) : $code;
         }
+        // Retrieve error message directly
+        $data['message'] = isset($data['parsed']['message']) ? $data['parsed']['message'] : (isset($data['parsed']['Message']) ? $data['parsed']['Message'] : null);
+        $this->populateShape($data, $response, $command);
         return $data;
     }
 }

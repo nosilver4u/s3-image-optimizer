@@ -22,7 +22,7 @@ class RestJsonSerializer extends \S3IO\Aws3\Aws\Api\Serializer\RestSerializer
     public function __construct(\S3IO\Aws3\Aws\Api\Service $api, $endpoint, \S3IO\Aws3\Aws\Api\Serializer\JsonBody $jsonFormatter = null)
     {
         parent::__construct($api, $endpoint);
-        $this->contentType = \S3IO\Aws3\Aws\Api\Serializer\JsonBody::getContentType($api);
+        $this->contentType = 'application/json';
         $this->jsonFormatter = $jsonFormatter ?: new \S3IO\Aws3\Aws\Api\Serializer\JsonBody($api);
     }
     protected function payload(\S3IO\Aws3\Aws\Api\StructureShape $member, array $value, array &$opts)

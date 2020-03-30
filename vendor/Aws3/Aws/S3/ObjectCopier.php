@@ -2,6 +2,8 @@
 
 namespace S3IO\Aws3\Aws\S3;
 
+use S3IO\Aws3\Aws\Arn\ArnParser;
+use S3IO\Aws3\Aws\Arn\S3\AccessPointArn;
 use S3IO\Aws3\Aws\Exception\MultipartUploadException;
 use S3IO\Aws3\Aws\Result;
 use S3IO\Aws3\Aws\S3\Exception\S3Exception;
@@ -95,6 +97,13 @@ class ObjectCopier implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
     }
     private function getSourcePath()
     {
+        if (\S3IO\Aws3\Aws\Arn\ArnParser::isArn($this->source['Bucket'])) {
+            try {
+                new \S3IO\Aws3\Aws\Arn\S3\AccessPointArn($this->source['Bucket']);
+            } catch (\Exception $e) {
+                throw new \InvalidArgumentException('Provided ARN was a not a valid S3 access point ARN (' . $e->getMessage() . ')', 0, $e);
+            }
+        }
         $sourcePath = "/{$this->source['Bucket']}/" . rawurlencode($this->source['Key']);
         if (isset($this->source['VersionId'])) {
             $sourcePath .= "?versionId={$this->source['VersionId']}";

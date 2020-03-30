@@ -45,9 +45,11 @@ class ConfigurationProvider
     const CACHE_KEY = 'aws_cached_csm_config';
     const DEFAULT_CLIENT_ID = '';
     const DEFAULT_ENABLED = false;
+    const DEFAULT_HOST = '127.0.0.1';
     const DEFAULT_PORT = 31000;
     const ENV_CLIENT_ID = 'AWS_CSM_CLIENT_ID';
     const ENV_ENABLED = 'AWS_CSM_ENABLED';
+    const ENV_HOST = 'AWS_CSM_HOST';
     const ENV_PORT = 'AWS_CSM_PORT';
     const ENV_PROFILE = 'AWS_PROFILE';
     /**
@@ -132,9 +134,9 @@ class ConfigurationProvider
             // Use credentials from environment variables, if available
             $enabled = getenv(self::ENV_ENABLED);
             if ($enabled !== false) {
-                return \S3IO\Aws3\GuzzleHttp\Promise\promise_for(new \S3IO\Aws3\Aws\ClientSideMonitoring\Configuration($enabled, getenv(self::ENV_PORT) ?: self::DEFAULT_PORT, getenv(self::ENV_CLIENT_ID) ?: self::DEFAULT_CLIENT_ID));
+                return \S3IO\Aws3\GuzzleHttp\Promise\promise_for(new \S3IO\Aws3\Aws\ClientSideMonitoring\Configuration($enabled, getenv(self::ENV_HOST) ?: self::DEFAULT_HOST, getenv(self::ENV_PORT) ?: self::DEFAULT_PORT, getenv(self::ENV_CLIENT_ID) ?: self::DEFAULT_CLIENT_ID));
             }
-            return self::reject('Could not find environment variable CSM config' . ' in ' . self::ENV_ENABLED . '/' . self::ENV_PORT . '/' . self::ENV_CLIENT_ID);
+            return self::reject('Could not find environment variable CSM config' . ' in ' . self::ENV_ENABLED . '/' . self::ENV_HOST . '/' . self::ENV_PORT . '/' . self::ENV_CLIENT_ID);
         };
     }
     /**
@@ -145,7 +147,7 @@ class ConfigurationProvider
     public static function fallback()
     {
         return function () {
-            return \S3IO\Aws3\GuzzleHttp\Promise\promise_for(new \S3IO\Aws3\Aws\ClientSideMonitoring\Configuration(self::DEFAULT_ENABLED, self::DEFAULT_PORT, self::DEFAULT_CLIENT_ID));
+            return \S3IO\Aws3\GuzzleHttp\Promise\promise_for(new \S3IO\Aws3\Aws\ClientSideMonitoring\Configuration(self::DEFAULT_ENABLED, self::DEFAULT_HOST, self::DEFAULT_PORT, self::DEFAULT_CLIENT_ID));
         };
     }
     /**
@@ -183,7 +185,7 @@ class ConfigurationProvider
             if (!is_readable($filename)) {
                 return self::reject("Cannot read CSM config from {$filename}");
             }
-            $data = parse_ini_file($filename, true);
+            $data = \S3IO\Aws3\Aws\parse_ini_file($filename, true);
             if ($data === false) {
                 return self::reject("Invalid config file: {$filename}");
             }
@@ -193,6 +195,10 @@ class ConfigurationProvider
             if (!isset($data[$profile]['csm_enabled'])) {
                 return self::reject("Required CSM config values not present in \n                    INI profile '{$profile}' ({$filename})");
             }
+            // host is optional
+            if (empty($data[$profile]['csm_host'])) {
+                $data[$profile]['csm_host'] = self::DEFAULT_HOST;
+            }
             // port is optional
             if (empty($data[$profile]['csm_port'])) {
                 $data[$profile]['csm_port'] = self::DEFAULT_PORT;
@@ -201,7 +207,7 @@ class ConfigurationProvider
             if (empty($data[$profile]['csm_client_id'])) {
                 $data[$profile]['csm_client_id'] = self::DEFAULT_CLIENT_ID;
             }
-            return \S3IO\Aws3\GuzzleHttp\Promise\promise_for(new \S3IO\Aws3\Aws\ClientSideMonitoring\Configuration($data[$profile]['csm_enabled'], $data[$profile]['csm_port'], $data[$profile]['csm_client_id']));
+            return \S3IO\Aws3\GuzzleHttp\Promise\promise_for(new \S3IO\Aws3\Aws\ClientSideMonitoring\Configuration($data[$profile]['csm_enabled'], $data[$profile]['csm_host'], $data[$profile]['csm_port'], $data[$profile]['csm_client_id']));
         };
     }
     /**
@@ -264,8 +270,9 @@ class ConfigurationProvider
             return $config;
         } elseif (is_array($config) && isset($config['enabled'])) {
             $client_id = isset($config['client_id']) ? $config['client_id'] : self::DEFAULT_CLIENT_ID;
+            $host = isset($config['host']) ? $config['host'] : self::DEFAULT_HOST;
             $port = isset($config['port']) ? $config['port'] : self::DEFAULT_PORT;
-            return new \S3IO\Aws3\Aws\ClientSideMonitoring\Configuration($config['enabled'], $port, $client_id);
+            return new \S3IO\Aws3\Aws\ClientSideMonitoring\Configuration($config['enabled'], $host, $port, $client_id);
         }
         throw new \InvalidArgumentException('Not a valid CSM configuration ' . 'argument.');
     }

@@ -29,6 +29,9 @@ class Command implements \S3IO\Aws3\Aws\CommandInterface
         if (!isset($this->data['@http'])) {
             $this->data['@http'] = [];
         }
+        if (!isset($this->data['@context'])) {
+            $this->data['@context'] = [];
+        }
     }
     public function __clone()
     {

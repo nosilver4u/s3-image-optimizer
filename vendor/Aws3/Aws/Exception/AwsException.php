@@ -2,18 +2,21 @@
 
 namespace S3IO\Aws3\Aws\Exception;
 
+use S3IO\Aws3\Aws\CommandInterface;
+use S3IO\Aws3\Aws\HasDataTrait;
 use S3IO\Aws3\Aws\HasMonitoringEventsTrait;
 use S3IO\Aws3\Aws\MonitoringEventsInterface;
 use S3IO\Aws3\Aws\ResponseContainerInterface;
+use S3IO\Aws3\Aws\ResultInterface;
+use S3IO\Aws3\JmesPath\Env as JmesPath;
 use S3IO\Aws3\Psr\Http\Message\ResponseInterface;
 use S3IO\Aws3\Psr\Http\Message\RequestInterface;
-use S3IO\Aws3\Aws\CommandInterface;
-use S3IO\Aws3\Aws\ResultInterface;
 /**
  * Represents an AWS exception that is thrown when a command fails.
  */
-class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\MonitoringEventsInterface, \S3IO\Aws3\Aws\ResponseContainerInterface
+class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\MonitoringEventsInterface, \S3IO\Aws3\Aws\ResponseContainerInterface, \ArrayAccess
 {
+    use HasDataTrait;
     use HasMonitoringEventsTrait;
     /** @var ResponseInterface */
     private $response;
@@ -35,6 +38,7 @@ class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\Monitorin
      */
     public function __construct($message, \S3IO\Aws3\Aws\CommandInterface $command, array $context = [], \Exception $previous = null)
     {
+        $this->data = isset($context['body']) ? $context['body'] : [];
         $this->command = $command;
         $this->response = isset($context['response']) ? $context['response'] : null;
         $this->request = isset($context['request']) ? $context['request'] : null;
@@ -194,5 +198,17 @@ class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\Monitorin
     public function setMaxRetriesExceeded()
     {
         $this->maxRetriesExceeded = true;
+    }
+    public function hasKey($name)
+    {
+        return isset($this->data[$name]);
+    }
+    public function get($key)
+    {
+        return $this[$key];
+    }
+    public function search($expression)
+    {
+        return \S3IO\Aws3\JmesPath\Env::search($expression, $this->toArray());
     }
 }

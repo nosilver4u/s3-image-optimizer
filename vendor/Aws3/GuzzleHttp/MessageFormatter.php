@@ -140,6 +140,11 @@ class MessageFormatter
             return $result;
         }, $this->template);
     }
+    /**
+     * Get headers from message as string
+     *
+     * @return string
+     */
     private function headers(\S3IO\Aws3\Psr\Http\Message\MessageInterface $message)
     {
         $result = '';

@@ -133,7 +133,7 @@ class ServerRequest extends \S3IO\Aws3\GuzzleHttp\Psr7\Request implements \S3IO\
         $method = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
         $headers = getallheaders();
         $uri = self::getUriFromGlobals();
-        $body = new \S3IO\Aws3\GuzzleHttp\Psr7\LazyOpenStream('php://input', 'r+');
+        $body = new \S3IO\Aws3\GuzzleHttp\Psr7\CachingStream(new \S3IO\Aws3\GuzzleHttp\Psr7\LazyOpenStream('php://input', 'r+'));
         $protocol = isset($_SERVER['SERVER_PROTOCOL']) ? str_replace('HTTP/', '', $_SERVER['SERVER_PROTOCOL']) : '1.1';
         $serverRequest = new \S3IO\Aws3\GuzzleHttp\Psr7\ServerRequest($method, $uri, $headers, $body, $protocol, $_SERVER);
         return $serverRequest->withCookieParams($_COOKIE)->withQueryParams($_GET)->withParsedBody($_POST)->withUploadedFiles(self::normalizeFiles($_FILES));

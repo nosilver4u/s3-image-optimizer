@@ -2,9 +2,9 @@
 
 namespace S3IO\Aws3\GuzzleHttp\Exception;
 
+use S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface;
 use S3IO\Aws3\Psr\Http\Message\RequestInterface;
 use S3IO\Aws3\Psr\Http\Message\ResponseInterface;
-use S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface;
 use S3IO\Aws3\Psr\Http\Message\UriInterface;
 /**
  * HTTP Request exception
@@ -13,7 +13,7 @@ class RequestException extends \S3IO\Aws3\GuzzleHttp\Exception\TransferException
 {
     /** @var RequestInterface */
     private $request;
-    /** @var ResponseInterface */
+    /** @var ResponseInterface|null */
     private $response;
     /** @var array */
     private $handlerContext;
@@ -86,34 +86,16 @@ class RequestException extends \S3IO\Aws3\GuzzleHttp\Exception\TransferException
      */
     public static function getResponseBodySummary(\S3IO\Aws3\Psr\Http\Message\ResponseInterface $response)
     {
-        $body = $response->getBody();
-        if (!$body->isSeekable()) {
-            return null;
-        }
-        $size = $body->getSize();
-        if ($size === 0) {
-            return null;
-        }
-        $summary = $body->read(120);
-        $body->rewind();
-        if ($size > 120) {
-            $summary .= ' (truncated...)';
-        }
-        // Matches any printable character, including unicode characters:
-        // letters, marks, numbers, punctuation, spacing, and separators.
-        if (preg_match('/[^\\pL\\pM\\pN\\pP\\pS\\pZ\\n\\r\\t]/', $summary)) {
-            return null;
-        }
-        return $summary;
+        return \S3IO\Aws3\GuzzleHttp\Psr7\get_message_body_summary($response);
     }
     /**
-     * Obfuscates URI if there is an username and a password present
+     * Obfuscates URI if there is a username and a password present
      *
      * @param UriInterface $uri
      *
      * @return UriInterface
      */
-    private static function obfuscateUri($uri)
+    private static function obfuscateUri(\S3IO\Aws3\Psr\Http\Message\UriInterface $uri)
     {
         $userInfo = $uri->getUserInfo();
         if (false !== ($pos = strpos($userInfo, ':'))) {

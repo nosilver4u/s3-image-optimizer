@@ -23,6 +23,8 @@ class RetryMiddleware
         'RequestThrottled' => true,
         'BandwidthLimitExceeded' => true,
         'RequestThrottledException' => true,
+        'TooManyRequestsException' => true,
+        'IDPCommunicationError' => true,
     ];
     private $decider;
     private $delay;
@@ -92,6 +94,9 @@ class RetryMiddleware
             }
         }
         if (!$error) {
+            if (!isset($result['@metadata']['statusCode'])) {
+                return false;
+            }
             return isset($statusCodes[$result['@metadata']['statusCode']]);
         }
         if (!$error instanceof AwsException) {

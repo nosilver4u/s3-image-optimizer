@@ -4,6 +4,7 @@ namespace S3IO\Aws3\Aws\Crypto;
 
 use S3IO\Aws3\GuzzleHttp\Psr7;
 use S3IO\Aws3\GuzzleHttp\Psr7\LimitStream;
+use S3IO\Aws3\Psr\Http\Message\StreamInterface;
 trait DecryptionTrait
 {
     /**
@@ -61,7 +62,7 @@ trait DecryptionTrait
         unset($cek);
         return $decryptionSteam;
     }
-    private function getTagFromCiphertextStream(\S3IO\Aws3\GuzzleHttp\Psr7\Stream $cipherText, $tagLength)
+    private function getTagFromCiphertextStream(\S3IO\Aws3\Psr\Http\Message\StreamInterface $cipherText, $tagLength)
     {
         $cipherTextSize = $cipherText->getSize();
         if ($cipherTextSize == null || $cipherTextSize <= 0) {
@@ -69,7 +70,7 @@ trait DecryptionTrait
         }
         return (string) new \S3IO\Aws3\GuzzleHttp\Psr7\LimitStream($cipherText, $tagLength, $cipherTextSize - $tagLength);
     }
-    private function getStrippedCiphertextStream(\S3IO\Aws3\GuzzleHttp\Psr7\Stream $cipherText, $tagLength)
+    private function getStrippedCiphertextStream(\S3IO\Aws3\Psr\Http\Message\StreamInterface $cipherText, $tagLength)
     {
         $cipherTextSize = $cipherText->getSize();
         if ($cipherTextSize == null || $cipherTextSize <= 0) {

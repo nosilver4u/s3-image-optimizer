@@ -22,6 +22,7 @@ class FileCookieJar extends \S3IO\Aws3\GuzzleHttp\Cookie\CookieJar
      */
     public function __construct($cookieFile, $storeSessionCookies = false)
     {
+        parent::__construct();
         $this->filename = $cookieFile;
         $this->storeSessionCookies = $storeSessionCookies;
         if (file_exists($cookieFile)) {
@@ -51,7 +52,7 @@ class FileCookieJar extends \S3IO\Aws3\GuzzleHttp\Cookie\CookieJar
             }
         }
         $jsonStr = \S3IO\Aws3\GuzzleHttp\json_encode($json);
-        if (false === file_put_contents($filename, $jsonStr)) {
+        if (false === file_put_contents($filename, $jsonStr, LOCK_EX)) {
             throw new \RuntimeException("Unable to save file {$filename}");
         }
     }

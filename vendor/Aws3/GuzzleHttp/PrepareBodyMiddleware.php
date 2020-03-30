@@ -55,6 +55,11 @@ class PrepareBodyMiddleware
         $this->addExpectHeader($request, $options, $modify);
         return $fn(\S3IO\Aws3\GuzzleHttp\Psr7\modify_request($request, $modify), $options);
     }
+    /**
+     * Add expect header
+     *
+     * @return void
+     */
     private function addExpectHeader(\S3IO\Aws3\Psr\Http\Message\RequestInterface $request, array $options, array &$modify)
     {
         // Determine if the Expect header should be used

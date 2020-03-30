@@ -2,6 +2,7 @@
 
 namespace S3IO\Aws3\Aws\S3;
 
+use S3IO\Aws3\Aws\Arn\ArnParser;
 use S3IO\Aws3\Aws\Multipart\AbstractUploadManager;
 use S3IO\Aws3\Aws\ResultInterface;
 use S3IO\Aws3\GuzzleHttp\Psr7;
@@ -54,7 +55,12 @@ class MultipartCopy extends \S3IO\Aws3\Aws\Multipart\AbstractUploadManager
      */
     public function __construct(\S3IO\Aws3\Aws\S3\S3ClientInterface $client, $source, array $config = [])
     {
-        $this->source = '/' . ltrim($source, '/');
+        if (\S3IO\Aws3\Aws\Arn\ArnParser::isArn($source)) {
+            $this->source = '';
+        } else {
+            $this->source = "/";
+        }
+        $this->source .= ltrim($source, '/');
         parent::__construct($client, array_change_key_case($config) + ['source_metadata' => null]);
     }
     /**

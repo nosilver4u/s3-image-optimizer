@@ -13,7 +13,7 @@ class AnonymousSignature implements \S3IO\Aws3\Aws\Signature\SignatureInterface
     {
         return $request;
     }
-    public function presign(\S3IO\Aws3\Psr\Http\Message\RequestInterface $request, \S3IO\Aws3\Aws\Credentials\CredentialsInterface $credentials, $expires)
+    public function presign(\S3IO\Aws3\Psr\Http\Message\RequestInterface $request, \S3IO\Aws3\Aws\Credentials\CredentialsInterface $credentials, $expires, array $options = [])
     {
         return $request;
     }

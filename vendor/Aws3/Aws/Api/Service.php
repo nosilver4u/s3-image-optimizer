@@ -67,16 +67,18 @@ class Service extends \S3IO\Aws3\Aws\Api\AbstractModel
     /**
      * Creates an error parser for the given protocol.
      *
+     * Redundant method signature to preserve backwards compatibility.
+     *
      * @param string $protocol Protocol to parse (e.g., query, json, etc.)
      *
      * @return callable
      * @throws \UnexpectedValueException
      */
-    public static function createErrorParser($protocol)
+    public static function createErrorParser($protocol, \S3IO\Aws3\Aws\Api\Service $api = null)
     {
         static $mapping = ['json' => 'S3IO\\Aws3\\Aws\\Api\\ErrorParser\\JsonRpcErrorParser', 'query' => 'S3IO\\Aws3\\Aws\\Api\\ErrorParser\\XmlErrorParser', 'rest-json' => 'S3IO\\Aws3\\Aws\\Api\\ErrorParser\\RestJsonErrorParser', 'rest-xml' => 'S3IO\\Aws3\\Aws\\Api\\ErrorParser\\XmlErrorParser', 'ec2' => 'S3IO\\Aws3\\Aws\\Api\\ErrorParser\\XmlErrorParser'];
         if (isset($mapping[$protocol])) {
-            return new $mapping[$protocol]();
+            return new $mapping[$protocol]($api);
         }
         throw new \UnexpectedValueException("Unknown protocol: {$protocol}");
     }
@@ -221,6 +223,22 @@ class Service extends \S3IO\Aws3\Aws\Api\AbstractModel
         $result = [];
         foreach ($this->definition['operations'] as $name => $definition) {
             $result[$name] = $this->getOperation($name);
+        }
+        return $result;
+    }
+    /**
+     * Get all of the error shapes of the service
+     *
+     * @return array
+     */
+    public function getErrorShapes()
+    {
+        $result = [];
+        foreach ($this->definition['shapes'] as $name => $definition) {
+            if (!empty($definition['exception'])) {
+                $definition['name'] = $name;
+                $result[] = new \S3IO\Aws3\Aws\Api\StructureShape($definition, $this->getShapeMap());
+            }
         }
         return $result;
     }

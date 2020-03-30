@@ -32,5 +32,5 @@ interface SignatureInterface
      *
      * @return RequestInterface
      */
-    public function presign(\S3IO\Aws3\Psr\Http\Message\RequestInterface $request, \S3IO\Aws3\Aws\Credentials\CredentialsInterface $credentials, $expires);
+    public function presign(\S3IO\Aws3\Psr\Http\Message\RequestInterface $request, \S3IO\Aws3\Aws\Credentials\CredentialsInterface $credentials, $expires, array $options = []);
 }

@@ -2,8 +2,8 @@
 
 namespace S3IO\Aws3\GuzzleHttp;
 
-use S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface;
 use S3IO\Aws3\GuzzleHttp\Exception\GuzzleException;
+use S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface;
 use S3IO\Aws3\Psr\Http\Message\RequestInterface;
 use S3IO\Aws3\Psr\Http\Message\ResponseInterface;
 use S3IO\Aws3\Psr\Http\Message\UriInterface;
@@ -12,7 +12,10 @@ use S3IO\Aws3\Psr\Http\Message\UriInterface;
  */
 interface ClientInterface
 {
-    const VERSION = '6.3.3';
+    /**
+     * @deprecated Will be removed in Guzzle 7.0.0
+     */
+    const VERSION = '6.5.1';
     /**
      * Send an HTTP request.
      *

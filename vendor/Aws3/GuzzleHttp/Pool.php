@@ -2,11 +2,12 @@
 
 namespace S3IO\Aws3\GuzzleHttp;
 
+use S3IO\Aws3\GuzzleHttp\Promise\EachPromise;
+use S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface;
 use S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface;
 use S3IO\Aws3\Psr\Http\Message\RequestInterface;
-use S3IO\Aws3\GuzzleHttp\Promise\EachPromise;
 /**
- * Sends and iterator of requests concurrently using a capped pool size.
+ * Sends an iterator of requests concurrently using a capped pool size.
  *
  * The pool will read from an iterator until it is cancelled or until the
  * iterator is consumed. When a request is yielded, the request is sent after
@@ -58,6 +59,11 @@ class Pool implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
         };
         $this->each = new \S3IO\Aws3\GuzzleHttp\Promise\EachPromise($requests(), $config);
     }
+    /**
+     * Get promise
+     *
+     * @return PromiseInterface
+     */
     public function promise()
     {
         return $this->each->promise();
@@ -89,6 +95,11 @@ class Pool implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
         ksort($res);
         return $res;
     }
+    /**
+     * Execute callback(s)
+     *
+     * @return void
+     */
     private static function cmpCallback(array &$options, $name, array &$results)
     {
         if (!isset($options[$name])) {

@@ -21,6 +21,7 @@ class SessionCookieJar extends \S3IO\Aws3\GuzzleHttp\Cookie\CookieJar
      */
     public function __construct($sessionKey, $storeSessionCookies = false)
     {
+        parent::__construct();
         $this->sessionKey = $sessionKey;
         $this->storeSessionCookies = $storeSessionCookies;
         $this->load();

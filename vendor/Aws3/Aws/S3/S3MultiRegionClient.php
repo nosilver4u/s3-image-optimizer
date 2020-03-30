@@ -255,7 +255,7 @@ class S3MultiRegionClient extends \S3IO\Aws3\Aws\MultiRegionClient implements \S
             };
         };
     }
-    public function createPresignedRequest(\S3IO\Aws3\Aws\CommandInterface $command, $expires)
+    public function createPresignedRequest(\S3IO\Aws3\Aws\CommandInterface $command, $expires, array $options = [])
     {
         if (empty($command['Bucket'])) {
             throw new \InvalidArgumentException('The S3\\MultiRegionClient' . ' cannot create presigned requests for commands without a' . ' specified bucket.');

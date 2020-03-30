@@ -3,14 +3,24 @@
 namespace S3IO\Aws3\Aws\Api\ErrorParser;
 
 use S3IO\Aws3\Aws\Api\Parser\PayloadParserTrait;
+use S3IO\Aws3\Aws\Api\Parser\XmlParser;
+use S3IO\Aws3\Aws\Api\Service;
+use S3IO\Aws3\Aws\Api\StructureShape;
+use S3IO\Aws3\Aws\CommandInterface;
 use S3IO\Aws3\Psr\Http\Message\ResponseInterface;
 /**
  * Parses XML errors.
  */
-class XmlErrorParser
+class XmlErrorParser extends \S3IO\Aws3\Aws\Api\ErrorParser\AbstractErrorParser
 {
     use PayloadParserTrait;
-    public function __invoke(\S3IO\Aws3\Psr\Http\Message\ResponseInterface $response)
+    protected $parser;
+    public function __construct(\S3IO\Aws3\Aws\Api\Service $api = null, \S3IO\Aws3\Aws\Api\Parser\XmlParser $parser = null)
+    {
+        parent::__construct($api);
+        $this->parser = $parser ?: new \S3IO\Aws3\Aws\Api\Parser\XmlParser();
+    }
+    public function __invoke(\S3IO\Aws3\Psr\Http\Message\ResponseInterface $response, \S3IO\Aws3\Aws\CommandInterface $command = null)
     {
         $code = (string) $response->getStatusCode();
         $data = ['type' => $code[0] == '4' ? 'client' : 'server', 'request_id' => null, 'code' => null, 'message' => null, 'parsed' => null];
@@ -20,6 +30,7 @@ class XmlErrorParser
         } else {
             $this->parseHeaders($response, $data);
         }
+        $this->populateShape($data, $response, $command);
         return $data;
     }
     private function parseHeaders(\S3IO\Aws3\Psr\Http\Message\ResponseInterface $response, array &$data)
@@ -36,15 +47,7 @@ class XmlErrorParser
     private function parseBody(\SimpleXMLElement $body, array &$data)
     {
         $data['parsed'] = $body;
-        $namespaces = $body->getDocNamespaces();
-        if (!isset($namespaces[''])) {
-            $prefix = '';
-        } else {
-            // Account for the default namespace being defined and PHP not
-            // being able to handle it :(.
-            $body->registerXPathNamespace('ns', $namespaces['']);
-            $prefix = 'ns:';
-        }
+        $prefix = $this->registerNamespacePrefix($body);
         if ($tempXml = $body->xpath("//{$prefix}Code[1]")) {
             $data['code'] = (string) $tempXml[0];
         }
@@ -52,11 +55,28 @@ class XmlErrorParser
             $data['message'] = (string) $tempXml[0];
         }
         $tempXml = $body->xpath("//{$prefix}RequestId[1]");
-        if (empty($tempXml)) {
-            $tempXml = $body->xpath("//{$prefix}RequestID[1]");
-        }
         if (isset($tempXml[0])) {
             $data['request_id'] = (string) $tempXml[0];
+        }
+    }
+    protected function registerNamespacePrefix(\SimpleXMLElement $element)
+    {
+        $namespaces = $element->getDocNamespaces();
+        if (!isset($namespaces[''])) {
+            return '';
+        }
+        // Account for the default namespace being defined and PHP not
+        // being able to handle it :(.
+        $element->registerXPathNamespace('ns', $namespaces['']);
+        return 'ns:';
+    }
+    protected function payload(\S3IO\Aws3\Psr\Http\Message\ResponseInterface $response, \S3IO\Aws3\Aws\Api\StructureShape $member)
+    {
+        $xmlBody = $this->parseXml($response->getBody(), $response);
+        $prefix = $this->registerNamespacePrefix($xmlBody);
+        $errorBody = $xmlBody->xpath("//{$prefix}Error");
+        if (is_array($errorBody) && !empty($errorBody[0])) {
+            return $this->parser->parse($member, $errorBody[0]);
         }
     }
 }
