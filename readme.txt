@@ -1,8 +1,8 @@
 === S3 Image Optimizer ===
 Contributors: nosilver4u
-Tags: amazon, s3, cloudfront, image, optimize, optimization, photo, picture, seo, compression, wp-cli
+Tags: amazon, s3, image, optimize, optimization, photo, picture, seo, compression, wp-cli
 Requires at least: 5.0
-Tested up to: 5.2
+Tested up to: 5.4
 Stable tag: 2.1
 License: GPLv3
 
@@ -44,6 +44,9 @@ Start asking, and then we'll see what needs answering: https://ewww.io/contact-u
 * rewrote bucket scanning to use AJAX in order to avoid timeouts
 * fixed delay not working for WP-CLI
 * display configuration errors when run from WP-CLI
+* fixed S3IO_DOSPACES constant not working
+* fixed scanner broken on objects with apostrophes
+* fixed URL optimizer with url-encoded characters (like spaces = %20)
 
 = 2.0 =
 * added compatibility with Digital Ocean Spaces
