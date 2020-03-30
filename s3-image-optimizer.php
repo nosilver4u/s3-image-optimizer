@@ -86,7 +86,7 @@ function s3io_admin_init() {
 		S3IO_SL_STORE_URL,
 		__FILE__,
 		array(
-			'version' => '2.0',
+			'version' => '2.1',
 			'license' => $license_key,
 			'item_id' => S3IO_SL_ITEM_ID,
 			'author'  => 'Shane Bishop',
