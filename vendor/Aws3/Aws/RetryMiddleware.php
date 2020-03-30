@@ -25,6 +25,7 @@ class RetryMiddleware
         'RequestThrottledException' => true,
         'TooManyRequestsException' => true,
         'IDPCommunicationError' => true,
+        'EC2ThrottledException' => true,
     ];
     private $decider;
     private $delay;

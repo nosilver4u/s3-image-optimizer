@@ -2,6 +2,7 @@
 
 namespace S3IO\Aws3\Aws;
 
+use S3IO\Aws3\GuzzleHttp\Client;
 use S3IO\Aws3\Psr\Http\Message\RequestInterface;
 use S3IO\Aws3\GuzzleHttp\ClientInterface;
 use S3IO\Aws3\GuzzleHttp\Promise\FulfilledPromise;
@@ -248,12 +249,14 @@ function describe_type($input)
  */
 function default_http_handler()
 {
-    $version = (string) \S3IO\Aws3\GuzzleHttp\ClientInterface::VERSION;
-    if ($version[0] === '5') {
-        return new \S3IO\Aws3\Aws\Handler\GuzzleV5\GuzzleHandler();
-    }
-    if ($version[0] === '6') {
+    $version = guzzle_major_version();
+    // If Guzzle 6 or 7 installed
+    if ($version === 6 || $version === 7) {
         return new \S3IO\Aws3\Aws\Handler\GuzzleV6\GuzzleHandler();
+    }
+    // If Guzzle 5 installed
+    if ($version === 5) {
+        return new \S3IO\Aws3\Aws\Handler\GuzzleV5\GuzzleHandler();
     }
     throw new \RuntimeException('Unknown Guzzle version: ' . $version);
 }
@@ -264,14 +267,42 @@ function default_http_handler()
  */
 function default_user_agent()
 {
-    $version = (string) \S3IO\Aws3\GuzzleHttp\ClientInterface::VERSION;
-    if ($version[0] === '5') {
-        return \S3IO\Aws3\GuzzleHttp\Client::getDefaultUserAgent();
-    }
-    if ($version[0] === '6') {
+    $version = guzzle_major_version();
+    // If Guzzle 6 or 7 installed
+    if ($version === 6 || $version === 7) {
         return \S3IO\Aws3\GuzzleHttp\default_user_agent();
     }
+    // If Guzzle 5 installed
+    if ($version === 5) {
+        return \S3IO\Aws3\GuzzleHttp\Client::getDefaultUserAgent();
+    }
     throw new \RuntimeException('Unknown Guzzle version: ' . $version);
+}
+/**
+ * Get the major version of guzzle that is installed.
+ *
+ * @internal This function is internal and should not be used outside aws/aws-sdk-php.
+ * @return int
+ * @throws \RuntimeException
+ */
+function guzzle_major_version()
+{
+    static $cache = null;
+    if (null !== $cache) {
+        return $cache;
+    }
+    if (defined('S3IO\\Aws3\\GuzzleHttp\\ClientInterface::VERSION')) {
+        $version = (string) \S3IO\Aws3\GuzzleHttp\ClientInterface::VERSION;
+        if ($version[0] === '6') {
+            return $cache = 6;
+        }
+        if ($version[0] === '5') {
+            return $cache = 5;
+        }
+    } elseif (method_exists(\S3IO\Aws3\GuzzleHttp\Client::class, 'sendRequest')) {
+        return $cache = 7;
+    }
+    throw new \RuntimeException('Unable to determine what Guzzle version is installed.');
 }
 /**
  * Serialize a request for a command but do not send it.

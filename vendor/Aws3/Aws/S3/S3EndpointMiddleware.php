@@ -79,7 +79,7 @@ class S3EndpointMiddleware
     }
     private static function isRequestHostStyleCompatible(\S3IO\Aws3\Aws\CommandInterface $command, \S3IO\Aws3\Psr\Http\Message\RequestInterface $request)
     {
-        return \S3IO\Aws3\Aws\S3\S3Client::isBucketDnsCompatible($command['Bucket']) && ($request->getUri()->getScheme() === 'http' || strpos($command['Bucket'], '.') === false);
+        return \S3IO\Aws3\Aws\S3\S3Client::isBucketDnsCompatible($command['Bucket']) && ($request->getUri()->getScheme() === 'http' || strpos($command['Bucket'], '.') === false) && filter_var($request->getUri()->getHost(), FILTER_VALIDATE_IP) === false;
     }
     private function endpointPatternDecider(\S3IO\Aws3\Aws\CommandInterface $command, \S3IO\Aws3\Psr\Http\Message\RequestInterface $request)
     {

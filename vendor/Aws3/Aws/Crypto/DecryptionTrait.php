@@ -51,7 +51,7 @@ trait DecryptionTrait
      *
      * @internal
      */
-    protected function decrypt($cipherText, \S3IO\Aws3\Aws\Crypto\MaterialsProvider $provider, \S3IO\Aws3\Aws\Crypto\MetadataEnvelope $envelope, array $cipherOptions = [])
+    public function decrypt($cipherText, \S3IO\Aws3\Aws\Crypto\MaterialsProvider $provider, \S3IO\Aws3\Aws\Crypto\MetadataEnvelope $envelope, array $cipherOptions = [])
     {
         $cipherOptions['Iv'] = base64_decode($envelope[\S3IO\Aws3\Aws\Crypto\MetadataEnvelope::IV_HEADER]);
         $cipherOptions['TagLength'] = $envelope[\S3IO\Aws3\Aws\Crypto\MetadataEnvelope::CRYPTO_TAG_LENGTH_HEADER] / 8;

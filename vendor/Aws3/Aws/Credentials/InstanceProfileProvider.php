@@ -11,7 +11,7 @@ use S3IO\Aws3\GuzzleHttp\Psr7\Request;
 use S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface;
 use S3IO\Aws3\Psr\Http\Message\ResponseInterface;
 /**
- * Credential provider that provides credentials from the EC2 metadata server.
+ * Credential provider that provides credentials from the EC2 metadata service.
  */
 class InstanceProfileProvider
 {
@@ -123,7 +123,7 @@ class InstanceProfileProvider
     {
         $disabled = getenv(self::ENV_DISABLE) ?: false;
         if (strcasecmp($disabled, 'true') === 0) {
-            throw new \S3IO\Aws3\Aws\Exception\CredentialsException($this->createErrorMessage('EC2 metadata server access disabled'));
+            throw new \S3IO\Aws3\Aws\Exception\CredentialsException($this->createErrorMessage('EC2 metadata service access disabled'));
         }
         $fn = $this->client;
         $request = new \S3IO\Aws3\GuzzleHttp\Psr7\Request($method, self::SERVER_URI . $url);
@@ -168,7 +168,7 @@ class InstanceProfileProvider
     }
     private function createErrorMessage($previous)
     {
-        return "Error retrieving credentials from the instance profile " . "metadata server. ({$previous})";
+        return "Error retrieving credentials from the instance profile " . "metadata service. ({$previous})";
     }
     private function decodeResult($response)
     {

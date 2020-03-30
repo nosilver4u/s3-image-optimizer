@@ -42,7 +42,7 @@ trait EncryptionTrait
      *
      * @internal
      */
-    protected function encrypt(\S3IO\Aws3\GuzzleHttp\Psr7\Stream $plaintext, array $cipherOptions, \S3IO\Aws3\Aws\Crypto\MaterialsProvider $provider, \S3IO\Aws3\Aws\Crypto\MetadataEnvelope $envelope)
+    public function encrypt(\S3IO\Aws3\GuzzleHttp\Psr7\Stream $plaintext, array $cipherOptions, \S3IO\Aws3\Aws\Crypto\MaterialsProvider $provider, \S3IO\Aws3\Aws\Crypto\MetadataEnvelope $envelope)
     {
         $materialsDescription = $provider->getMaterialsDescription();
         $cipherOptions = array_intersect_key($cipherOptions, self::$allowedOptions);

@@ -444,7 +444,7 @@ namespace S3IO\Aws3\Aws;
  */
 class Sdk
 {
-    const VERSION = '3.130.3';
+    const VERSION = '3.133.46';
     /** @var array Arguments for creating clients */
     private $args;
     /**
