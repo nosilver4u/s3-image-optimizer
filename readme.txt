@@ -2,40 +2,32 @@
 Contributors: nosilver4u
 Tags: amazon, s3, image, optimize, optimization, photo, picture, seo, compression, wp-cli
 Requires at least: 5.0
-Tested up to: 5.4
-Stable tag: 2.1
+Tested up to: 5.5
+Stable tag: 2.2
 License: GPLv3
 
 Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 
 == Description ==
 
-The S3 Image Optimizer is a WordPress plugin that will allow you to retrieve all the images within one or more Amazon S3 buckets and optimize them using the EWWW Image Optimizer. It also requires the Amazon Web Services plugin to work with Amazon S3.
+The S3 Image Optimizer is a WordPress plugin that will allow you to retrieve all the images within one or more Amazon S3 buckets and optimize them using the EWWW Image Optimizer.
 
-It currently uses a web-based optimization process, but a wp-cli interface is on the roadmap, as well as a hosted version dedicated exclusively to optimizing S3 buckets.
+It includes a web-based bulk optimization process, and a wp-cli interface for massive buckets.
 
 == Installation ==
 
-1. Install and configure the EWWW Image Optimizer plugin.
-1. Install the [Amazon Web Services plugin](http://wordpress.org/extend/plugins/amazon-web-services/) using WordPress' built-in installer.
-1. Follow the instructions to setup your AWS access keys.
-1. Install this plugin via Wordpress' built-in plugin installer.
-1. Enter S3 bucket names under Settings and S3 Image Optimizer.
-1. As noted on the settings page, you can also define constants to restrict S3 IO to a specific bucket and/or sub-folder: S3_IMAGE_OPTIMIZER_BUCKET and S3_IMAGE_OPTIMIZER_FOLDER
+See the latest docs at [https://docs.ewww.io/article/22-how-to-use-s3-image-optimizer](https://docs.ewww.io/article/22-how-to-use-s3-image-optimizer).
 
 = Usage =
 
-* Go to Media and S3 Bulk Optimizer to start optimizing your bucket.
-* Use Media->S3 URL Optimizer to optimize specific images by their url/address.
-* Use WP-CLI to optimize your buckets from the command line, especially useful for large buckets or scheduling bulk optimization:  wp-cli help s3io optimize
-
-== Frequently Asked Questions ==
-
-= Why aren't there any questions here? =
-
-Start asking, and then we'll see what needs answering: https://ewww.io/contact-us/
+See the latest docs at [https://docs.ewww.io/article/22-how-to-use-s3-image-optimizer](https://docs.ewww.io/article/22-how-to-use-s3-image-optimizer).
 
 == Changelog ==
+
+= 2.2 =
+* added: generate an upload WebP version of your images in accordance with EWWW IO settings (WebP Conversion and Force WebP)
+* fixed bulk toggle-arrow styling
+* additional sanitizing and escaping for better security
 
 = 2.1 =
 * updated AWS SDK to v3, let us know if you encounter errors

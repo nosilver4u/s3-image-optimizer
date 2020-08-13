@@ -25,10 +25,34 @@ jQuery(document).ready(function($) {
 		s3io_wpnonce: s3io_vars._wpnonce,
 	};
 	var s3io_table_action = 's3io_query_table';
-	var s3io_table_count_action = 's3io_table_count';
 	// get the urls from the textarea
 	var s3io_queue = '';
 	var s3io_url_count = 0;
+	$('.s3io-hndle').click(function() {
+		$(this).next('.inside').toggle();
+		var button = $(this).prev('.button-link');
+		if ('true' == button.attr('aria-expanded')) {
+			button.attr('aria-expanded', 'false');
+			button.closest('.postbox').addClass('closed');
+			button.children('.toggle-indicator').attr('aria-hidden', 'true');
+		} else {
+			button.attr('aria-expanded', 'true');
+			button.closest('.postbox').removeClass('closed');
+			button.children('.toggle-indicator').attr('aria-hidden', 'false');
+		}
+	});
+	$('.s3io-handlediv').click(function() {
+		$(this).parent().children('.inside').toggle();
+		if ('true' == $(this).attr('aria-expanded')) {
+			$(this).attr('aria-expanded', 'false');
+			$(this).closest('.postbox').addClass('closed');
+			$(this).children('.toggle-indicator').attr('aria-hidden', 'true');
+		} else {
+			$(this).attr('aria-expanded', 'true');
+			$(this).closest('.postbox').removeClass('closed');
+			$(this).children('.toggle-indicator').attr('aria-hidden', 'false');
+		}
+	});
 	$('#s3io-bulk-stop').submit(function() {
 		s3io_k = 9;
 		$('#s3io-bulk-stop').hide();
