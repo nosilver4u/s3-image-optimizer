@@ -10,7 +10,7 @@ Plugin Name: S3 Image Optimizer
 Plugin URI: https://ewww.io/downloads/s3-image-optimizer/
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Shane Bishop
-Version: 2.2
+Version: 2.3
 Author URI: https://ewww.io/
 License: GPLv3
 */
@@ -18,7 +18,7 @@ License: GPLv3
 /**
  * Constants
  */
-define( 'S3IO_VERSION', '2.2' );
+define( 'S3IO_VERSION', '2.3' );
 // This is the full path of the plugin file itself.
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // This is the path of the plugin file relative to the plugins/ folder.
@@ -34,8 +34,8 @@ add_action( 'admin_init', 's3io_activate_license' );
 add_filter( 'aws_get_client_args', 's3io_addv4_args', 8 );
 add_filter( 'aws_get_client_args', 's3io_dospaces' );
 
-require_once( plugin_dir_path( __FILE__ ) . 'classes/class-amazon-web-services.php' );
 require_once( plugin_dir_path( __FILE__ ) . 'vendor/Aws3/aws-autoloader.php' );
+require_once( plugin_dir_path( __FILE__ ) . 'classes/class-amazon-web-services.php' );
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	require_once( plugin_dir_path( __FILE__ ) . 'classes/class-s3io-cli.php' );
 }
@@ -86,7 +86,7 @@ function s3io_admin_init() {
 		S3IO_SL_STORE_URL,
 		__FILE__,
 		array(
-			'version' => '2.2',
+			'version' => '2.3',
 			'license' => $license_key,
 			'item_id' => S3IO_SL_ITEM_ID,
 			'author'  => 'Shane Bishop',
@@ -541,7 +541,7 @@ function s3io_bucketlist_sanitize( $input ) {
  * Run sanity checks on license key provided by user.
  *
  * @param string $input The license key as entered.
- * @return string The licensce key after validation.
+ * @return string The license key after validation.
  */
 function s3io_license_sanitize( $input ) {
 	if ( empty( $input ) ) {
@@ -576,6 +576,11 @@ function s3io_bulk_script( $hook ) {
 	// Make sure we are being called from the proper page.
 	if ( 's3io-auto' !== $hook && 'media_page_s3io-bulk-display' !== $hook ) {
 		return;
+	}
+	// Unlook S3 Uploads from upload_dir.
+	if ( class_exists( 'S3_Uploads' ) ) {
+		$s3_uploads_instance = \S3_Uploads::get_instance();
+		remove_filter( 'upload_dir', array( $s3_uploads_instance, 'filter_upload_dir' ) );
 	}
 	$upload_dir = wp_upload_dir();
 	$upload_dir = trailingslashit( $upload_dir['basedir'] ) . 's3io/';
@@ -640,6 +645,11 @@ function s3io_url_script( $hook ) {
 	// Make sure we are being called from the proper page.
 	if ( 'media_page_s3io-url-display' !== $hook ) {
 		return;
+	}
+	// Unlook S3 Uploads from upload_dir.
+	if ( class_exists( 'S3_Uploads' ) ) {
+		$s3_uploads_instance = \S3_Uploads::get_instance();
+		remove_filter( 'upload_dir', array( $s3_uploads_instance, 'filter_upload_dir' ) );
 	}
 	$upload_dir = wp_upload_dir();
 	$upload_dir = trailingslashit( $upload_dir['basedir'] ) . 's3io/';
@@ -1434,8 +1444,13 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 	}
 	global $wpdb;
 	$image_record = $wpdb->get_row( "SELECT id,bucket,path,orig_size FROM $wpdb->s3io_images WHERE image_size IS NULL LIMIT 1", ARRAY_A );
-	$upload_dir   = wp_upload_dir();
-	$upload_dir   = trailingslashit( $upload_dir['basedir'] ) . 's3io/' . sanitize_file_name( $image_record['bucket'] ) . '/';
+	// Unlook S3 Uploads from upload_dir.
+	if ( class_exists( 'S3_Uploads' ) ) {
+		$s3_uploads_instance = \S3_Uploads::get_instance();
+		remove_filter( 'upload_dir', array( $s3_uploads_instance, 'filter_upload_dir' ) );
+	}
+	$upload_dir = wp_upload_dir();
+	$upload_dir = trailingslashit( $upload_dir['basedir'] ) . 's3io/' . sanitize_file_name( $image_record['bucket'] ) . '/';
 	global $s3io_amazon_web_services;
 	try {
 		$client = $s3io_amazon_web_services->get_client();
@@ -1636,8 +1651,13 @@ function s3io_url_loop() {
 		die();
 	}
 	$url_args['path'] = ltrim( $url_args['path'], '/' );
-	$upload_dir       = wp_upload_dir();
-	$upload_dir       = trailingslashit( $upload_dir['basedir'] ) . 's3io/' . sanitize_file_name( $url_args['bucket'] ) . '/';
+	// Unlook S3 Uploads from upload_dir.
+	if ( class_exists( 'S3_Uploads' ) ) {
+		$s3_uploads_instance = \S3_Uploads::get_instance();
+		remove_filter( 'upload_dir', array( $s3_uploads_instance, 'filter_upload_dir' ) );
+	}
+	$upload_dir = wp_upload_dir();
+	$upload_dir = trailingslashit( $upload_dir['basedir'] ) . 's3io/' . sanitize_file_name( $url_args['bucket'] ) . '/';
 	global $s3io_amazon_web_services;
 	try {
 		$client = $s3io_amazon_web_services->get_client();

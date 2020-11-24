@@ -1,9 +1,10 @@
 === S3 Image Optimizer ===
 Contributors: nosilver4u
 Tags: amazon, s3, image, optimize, optimization, photo, picture, seo, compression, wp-cli
-Requires at least: 5.0
-Tested up to: 5.5
-Stable tag: 2.2
+Requires at least: 5.5
+Tested up to: 5.6
+Requires PHP: 7.1
+Stable tag: 2.3
 License: GPLv3
 
 Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
@@ -24,8 +25,11 @@ See the latest docs at [https://docs.ewww.io/article/22-how-to-use-s3-image-opti
 
 == Changelog ==
 
+= 2.3 =
+* fixed: conflict getting local uploads directory when S3 Uploads plugin is active
+
 = 2.2 =
-* added: generate an upload WebP version of your images in accordance with EWWW IO settings (WebP Conversion and Force WebP)
+* added: generate and upload WebP version of your images in accordance with EWWW IO settings (WebP Conversion and Force WebP)
 * fixed bulk toggle-arrow styling
 * additional sanitizing and escaping for better security
 
