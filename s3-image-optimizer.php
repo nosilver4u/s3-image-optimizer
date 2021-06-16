@@ -211,7 +211,14 @@ function s3io_dospaces( $args ) {
  * Let the user know that they need the EWWW IO plugin before S3 IO can do anything.
  */
 function s3io_missing_ewww_plugin() {
-	echo "<div id='s3io-error-ewww' class='error'><p>" . esc_html__( 'Could not detect the EWWW Image Optimizer plugin, please install and configure it first.', 's3-image-optimizer' ) . '</p></div>';
+	?>
+	<div id='s3io-error-ewww' class='error'>
+		<p>
+			<?php /* translators: %s: AWS error message */ ?>
+			<?php printf( esc_html__( 'Could not detect the %s plugin, please install and configure it first.', 's3-image-optimizer' ), '<a href="' . esc_url( admin_url( 'plugin-install.php?s=ewww+image+optimizer&tab=search&type=term' ) ) . '">EWWW Image Optimizer</a>' ); ?>
+		</p>
+	</div>
+	<?php
 }
 
 /**
@@ -242,6 +249,10 @@ function s3io_options_page() {
 	?>
 <div class='wrap'>
 	<h1><?php esc_html_e( 'S3 Image Optimizer', 's3-image-optimizer' ); ?></h1>
+	<p>
+		<a href="https://docs.ewww.io/article/22-how-to-use-s3-image-optimizer"><?php esc_html_e( 'Installation Instructions', 's3-image-optimizer' ); ?></a> |
+		<a href="https://ewww.io/contact-us/"><?php esc_html_e( 'Support', 's3-image-optimizer' ); ?></a>
+	</p>
 	<form method='post' action='options.php'>
 		<?php settings_fields( 's3io_options' ); ?>
 		<table class='form-table'>
