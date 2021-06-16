@@ -1,16 +1,17 @@
 <?php
 /**
- * Loader for S3 Image Optimizer plugin.
+ * S3 Image Optimizer plugin.
  *
+ * @link https://ewww.io
  * @package S3_Image_Optimizer
  */
 
 /*
 Plugin Name: S3 Image Optimizer
-Plugin URI: https://ewww.io/downloads/s3-image-optimizer/
+Plugin URI: https://wordpress.org/plugins/s3-image-optimizer/
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
-Author: Shane Bishop
-Version: 2.3.91
+Author: Exactly WWW
+Version: 2.4
 Author URI: https://ewww.io/
 License: GPLv3
 */
@@ -30,7 +31,6 @@ define( 'S3IO_SL_ITEM_ID', 11618 );
 
 add_action( 'admin_init', 's3io_admin_init' );
 add_action( 'admin_menu', 's3io_admin_menu', 60 );
-add_action( 'admin_init', 's3io_activate_license' );
 add_filter( 'aws_get_client_args', 's3io_addv4_args', 8 );
 add_filter( 'aws_get_client_args', 's3io_dospaces' );
 
@@ -52,7 +52,6 @@ function s3io_admin_init() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
 	register_setting( 's3io_options', 's3io_verion' );
 	register_setting( 's3io_options', 's3io_bucketlist', 's3io_bucketlist_sanitize' );
-	register_setting( 's3io_options', 's3io_license_key', 's3io_license_sanitize' );
 	register_setting( 's3io_options', 's3io_dospaces', 'trim' );
 	register_setting( 's3io_options', 's3io_aws_access_key_id', 'trim' );
 	register_setting( 's3io_options', 's3io_aws_secret_access_key', 'trim' );
@@ -77,22 +76,6 @@ function s3io_admin_init() {
 		add_action( 'network_admin_notices', 's3io_missing_ewww_plugin' );
 		add_action( 'admin_notices', 's3io_missing_ewww_plugin' );
 	}
-
-	if ( ! class_exists( 'S3IO_SL_Plugin_Updater' ) ) {
-		include( dirname( __FILE__ ) . '/vendor/EDD_SL_Plugin_Updater.php' );
-	}
-	$license_key = trim( get_option( 's3io_license_key' ) );
-	$edd_updater = new S3IO_SL_Plugin_Updater(
-		S3IO_SL_STORE_URL,
-		__FILE__,
-		array(
-			'version' => '2.3',
-			'license' => $license_key,
-			'item_id' => S3IO_SL_ITEM_ID,
-			'author'  => 'Shane Bishop',
-			'url'     => home_url(),
-		)
-	);
 }
 
 /**
@@ -133,50 +116,7 @@ function s3io_install_table() {
 	require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
 	dbDelta( $sql );
 
-	// No need to autoload this option (even if it is small) since we only use it on manual activation.
-	add_option( 's3io_license_status', '', '', 'no' );
 	add_option( 's3io_optimize_urls', '', '', 'no' );
-}
-
-/**
- * Activate an S3 IO license key.
- */
-function s3io_activate_license() {
-	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
-	if ( isset( $_POST['s3io_license_activate'] ) ) {
-		if ( ! check_admin_referer( 's3io_activation_nonce', 's3io_activation_nonce' ) ) {
-			return;
-		}
-
-		if ( empty( $_POST['s3io_license_key'] ) ) {
-			return;
-		}
-		$license = trim( sanitize_key( $_POST['s3io_license_key'] ) );
-
-		$api_params = array(
-			'edd_action' => 'activate_license',
-			'license'    => $license,
-			'item_id'    => S3IO_SL_ITEM_ID,
-			'url'        => home_url(),
-		);
-
-		$response = wp_remote_post(
-			S3IO_SL_STORE_URL,
-			array(
-				'timeout'   => 15,
-				'sslverify' => true,
-				'body'      => $api_params,
-			)
-		);
-
-		if ( is_wp_error( $response ) ) {
-			return false;
-		}
-
-		$license_data = json_decode( wp_remote_retrieve_body( $response ) );
-
-		update_option( 's3io_license_status', $license_data->license );
-	}
 }
 
 /**
@@ -287,7 +227,7 @@ function s3io_admin_menu() {
 	add_options_page(
 		esc_html__( 'S3 Image Optimizer', 's3-image-optimizer' ), // Title.
 		esc_html__( 'S3 Image Optimizer', 's3-image-optimizer' ), // Sub-menu title.
-		'manage_options',                                       // Security.
+		'manage_options',                                         // Security.
 		S3IO_PLUGIN_FILE,                                         // File to open.
 		's3io_options_page'                                       // Function to call.
 	);
@@ -298,192 +238,125 @@ function s3io_admin_menu() {
  */
 function s3io_options_page() {
 	global $s3io_amazon_web_services;
-	$license_status = get_option( 's3io_license_status' );
-	$bucket_list    = get_option( 's3io_bucketlist' );
+	$bucket_list = get_option( 's3io_bucketlist' );
 	?>
-	<div class='wrap'>
-		<h1><?php esc_html_e( 'S3 Image Optimizer', 's3-image-optimizer' ); ?></h1>
-		<form method='post' action='options.php'>
-			<?php
-			settings_fields( 's3io_options' );
-			?>
-			<table class='form-table'>
-				<tr>
-					<th>
-						<label for='s3io_license_key'><?php esc_html_e( 'License Key', 's3-image-optimizer' ); ?></label>
-					</th>
-					<td>
-						<input type="text" id="s3io_license_key" name="s3io_license_key" value="<?php echo esc_attr( get_option( 's3io_license_key' ) ); ?>" size="32" />
-						<?php
-						if ( ! get_option( 's3io_license_key' ) ) {
-							esc_html_e( 'Enter your license key to activate automatic update checking', 's3-image-optimizer' );
-						} else {
-							?>
-							<a href="<?php echo esc_url( admin_url( 'admin.php?action=s3io_remove_license_key' ) ); ?>"><?php esc_html_e( 'Remove License', 's3-image-optimizer' ); ?></a>
-							<?php
-						}
-						?>
-					</td>
-				</tr>
-				<?php
-				if ( false !== get_option( 's3io_license_key' ) ) {
-					?>
-				<tr valign="top">
-					<th scope="row" valign="top"><?php esc_html_e( 'Activate License', 's3-image-optimizer' ); ?></th>
-					<td>
-						<?php
-						if ( false !== $license_status && 'valid' === $license_status ) {
-							?>
-						<span style="color:green;"><?php esc_html_e( 'active', 's3-image-optimizer' ); ?></span>
-							<?php
-						} else {
-							wp_nonce_field( 's3io_activation_nonce', 's3io_activation_nonce' );
-							?>
-						<input type="submit" class="button-secondary" name="s3io_license_activate" value="<?php esc_attr_e( 'Activate License', 's3-image-optimizer' ); ?>"/>
-							<?php
-						}
-						?>
-					</td>
-				</tr>
-					<?php
-				}
-				if ( $s3io_amazon_web_services->needs_access_keys() ) {
-					?>
-				<tr>
-					<th><?php esc_html_e( 'AWS Access Keys', 's3-image-optimizer' ); ?></th>
-					<td>
-						<i>
-					<?php
-					echo esc_html__( 'We recommend defining your Access Keys in wp-config.php so long as you don’t commit it to source control (you shouldn’t be).', 's3-image-optimizer' ) .
-						'</i><br>' .
-						esc_html__( 'Simply copy the following snippet and replace the stars with the keys.' );
-					?>
-						<a href="https://docs.ewww.io/article/61-creating-an-amazon-web-services-aws-user" target="_blank"><?php esc_html_e( 'Not sure where to find your access keys?', 's3-image-optimizer' ); ?></a><br>
-						<pre>define( 'DBI_AWS_ACCESS_KEY_ID', '********************' );
+<div class='wrap'>
+	<h1><?php esc_html_e( 'S3 Image Optimizer', 's3-image-optimizer' ); ?></h1>
+	<form method='post' action='options.php'>
+		<?php settings_fields( 's3io_options' ); ?>
+		<table class='form-table'>
+	<?php if ( $s3io_amazon_web_services->needs_access_keys() ) : ?>
+			<tr>
+				<th><?php esc_html_e( 'AWS Access Keys', 's3-image-optimizer' ); ?></th>
+				<td>
+					<i><?php esc_html_e( 'We recommend defining your Access Keys in wp-config.php so long as you don’t commit it to source control (you shouldn’t be).', 's3-image-optimizer' ); ?></i><br>
+					<?php esc_html_e( 'Simply copy the following snippet and replace the stars with the keys.' ); ?>
+					<a href="https://docs.ewww.io/article/61-creating-an-amazon-web-services-aws-user" target="_blank"><?php esc_html_e( 'Not sure where to find your access keys?', 's3-image-optimizer' ); ?></a><br>
+					<pre>define( 'DBI_AWS_ACCESS_KEY_ID', '********************' );
 define( 'DBI_AWS_SECRET_ACCESS_KEY', '****************************************' );</pre>
-					</td>
-				</tr>
-				<tr>
-					<th><label for="s3io_aws_access_key_id"><?php esc_html_e( 'AWS Access Key ID', 's3-image-optimizer' ); ?></label></th>
-					<td><input type="text" id="s3io_aws_access_key_id" name="s3io_aws_access_key_id" value="<?php echo esc_attr( get_option( 's3io_aws_access_key_id' ) ); ?>" size="64" /></td>
-				</tr>
-				<tr>
-					<th><label for="s3io_aws_secret_access_key"><?php esc_html_e( 'AWS Secret Access Key', 's3-image-optimizer' ); ?></label></th>
-					<td><input type="text" id="s3io_aws_secret_access_key" name="s3io_aws_secret_access_key" value="<?php echo esc_attr( get_option( 's3io_aws_secret_access_key' ) ); ?>" size="64" /></td>
-				</tr>
-					<?php
-				} else {
-					if ( get_option( 's3io_aws_access_key_id' ) ) {
-						?>
-				<tr>
-					<th><label for="s3io_aws_access_key_id"><?php esc_html_e( 'AWS Access Key ID', 's3-image-optimizer' ); ?></label></th>
-					<td><input type="text" id="s3io_aws_access_key_id" name="s3io_aws_access_key_id" value="<?php echo esc_attr( get_option( 's3io_aws_access_key_id' ) ); ?>" size="64" /></td>
-				</tr>
-						<?php
-					}
-					if ( get_option( 's3io_aws_secret_access_key' ) ) {
-						?>
-				<tr>
-					<th><label for="s3io_fake_secret_access_key"><?php esc_html_e( 'AWS Secret Access Key', 's3-image-optimizer' ); ?></label></th>
-					<td><input type="text" id="s3io_fake_secret_access_key" name="s3io_fake_secret_access_key" readonly='readonly' value="********************" size="64" />
-						<a href="<?php echo esc_url( admin_url( 'admin.php?action=s3io_remove_aws_keys' ) ); ?>"><?php esc_html_e( 'Remove Access Keys', 's3-image-optimizer' ); ?></a>
-						<input type="hidden" id="s3io_aws_secret_access_key" name="s3io_aws_secret_access_key" value="<?php echo esc_attr( get_option( 's3io_aws_secret_access_key' ) ); ?>" size="64" />
-					</td>
-				</tr>
-						<?php
-					}
-				}
-				?>
-				<tr>
-					<th><label for="s3io_dospaces"><?php esc_html_e( 'Digital Ocean Spaces Region', 's3-image-optimizer' ); ?></label></th>
-					<td>
-						<input type="text" id="s3io_dospaces" name="s3io_dospaces" value="<?php echo esc_attr( get_option( 's3io_dospaces' ) ); ?>" size="10" />
-						<p class='description'><?php esc_html_e( 'To use Digital Ocean Spaces, enter the region for your space, or define the S3IO_DOSPACES constant.', 's3-image-optimizer' ); ?></p>
-					</td>
-				</tr>
-				<?php
-				try {
-					$client = $s3io_amazon_web_services->get_client();
-				} catch ( Exception $e ) {
-					echo '</table><p>' . wp_kses_post( $e->getMessage() ) . '</p>';
-					echo "<p class='submit'><input type='submit' class='button-primary' value='" . esc_attr__( 'Save Changes', 's3-image-optimizer' ) . "' /></p>";
-					return;
-				}
-				if ( is_wp_error( $client ) ) {
-					echo '</table><p>' . wp_kses_post( $aws->get_error_message() ) . '</p>';
-					echo "<p class='submit'><input type='submit' class='button-primary' value='" . esc_attr__( 'Save Changes', 's3-image-optimizer' ) . "' /></p>";
-					return;
-				}
-				try {
-					$buckets = $client->listBuckets();
-				} catch ( Exception $e ) {
-					$buckets = new WP_Error( 'exception', $e->getMessage() );
-				}
-				?>
-				<tr>
-					<th><label for="s3io_bucketlist"><?php esc_html_e( 'Buckets to optimize', 's3-image-optimizer' ); ?></label></th>
-					<td>
-				<?php if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && S3_IMAGE_OPTIMIZER_BUCKET ) : ?>
-						<p>
-							<?php esc_html_e( 'You have currently defined the bucket constant (S3_IMAGE_OPTIMIZER_BUCKET):', 's3-image-optimizer' ); ?><br>
-							<?php echo esc_html( S3_IMAGE_OPTIMIZER_BUCKET ); ?>
-						</p>
+				</td>
+			</tr>
+			<tr>
+				<th><label for="s3io_aws_access_key_id"><?php esc_html_e( 'AWS Access Key ID', 's3-image-optimizer' ); ?></label></th>
+				<td><input type="text" id="s3io_aws_access_key_id" name="s3io_aws_access_key_id" value="<?php echo esc_attr( get_option( 's3io_aws_access_key_id' ) ); ?>" size="64" /></td>
+			</tr>
+			<tr>
+				<th><label for="s3io_aws_secret_access_key"><?php esc_html_e( 'AWS Secret Access Key', 's3-image-optimizer' ); ?></label></th>
+				<td><input type="text" id="s3io_aws_secret_access_key" name="s3io_aws_secret_access_key" value="<?php echo esc_attr( get_option( 's3io_aws_secret_access_key' ) ); ?>" size="64" /></td>
+			</tr>
+	<?php else : ?>
+		<?php if ( get_option( 's3io_aws_access_key_id' ) ) : ?>
+			<tr>
+				<th><label for="s3io_aws_access_key_id"><?php esc_html_e( 'AWS Access Key ID', 's3-image-optimizer' ); ?></label></th>
+				<td><input type="text" id="s3io_aws_access_key_id" name="s3io_aws_access_key_id" value="<?php echo esc_attr( get_option( 's3io_aws_access_key_id' ) ); ?>" size="64" /></td>
+			</tr>
+		<?php endif; ?>
+		<?php if ( get_option( 's3io_aws_secret_access_key' ) ) : ?>
+			<tr>
+				<th><label for="s3io_fake_secret_access_key"><?php esc_html_e( 'AWS Secret Access Key', 's3-image-optimizer' ); ?></label></th>
+				<td><input type="text" id="s3io_fake_secret_access_key" name="s3io_fake_secret_access_key" readonly='readonly' value="********************" size="64" />
+					<a href="<?php echo esc_url( admin_url( 'admin.php?action=s3io_remove_aws_keys' ) ); ?>"><?php esc_html_e( 'Remove Access Keys', 's3-image-optimizer' ); ?></a>
+					<input type="hidden" id="s3io_aws_secret_access_key" name="s3io_aws_secret_access_key" value="<?php echo esc_attr( get_option( 's3io_aws_secret_access_key' ) ); ?>" size="64" />
+				</td>
+			</tr>
+		<?php endif; ?>
+	<?php endif; ?>
+			<tr>
+				<th><label for="s3io_dospaces"><?php esc_html_e( 'Digital Ocean Spaces Region', 's3-image-optimizer' ); ?></label></th>
+				<td>
+					<input type="text" id="s3io_dospaces" name="s3io_dospaces" value="<?php echo esc_attr( get_option( 's3io_dospaces' ) ); ?>" size="10" />
+					<p class='description'><?php esc_html_e( 'To use Digital Ocean Spaces, enter the region for your space, or define the S3IO_DOSPACES constant.', 's3-image-optimizer' ); ?></p>
+				</td>
+			</tr>
+			<?php
+			try {
+				$client = $s3io_amazon_web_services->get_client();
+			} catch ( Exception $e ) {
+				echo '</table><p>' . wp_kses_post( $e->getMessage() ) . '</p>';
+				echo "<p class='submit'><input type='submit' class='button-primary' value='" . esc_attr__( 'Save Changes', 's3-image-optimizer' ) . "' /></p>";
+				return;
+			}
+			if ( is_wp_error( $client ) ) {
+				echo '</table><p>' . wp_kses_post( $aws->get_error_message() ) . '</p>';
+				echo "<p class='submit'><input type='submit' class='button-primary' value='" . esc_attr__( 'Save Changes', 's3-image-optimizer' ) . "' /></p>";
+				return;
+			}
+			try {
+				$buckets = $client->listBuckets();
+			} catch ( Exception $e ) {
+				$buckets = new WP_Error( 'exception', $e->getMessage() );
+			}
+			?>
+			<tr>
+				<th><label for="s3io_bucketlist"><?php esc_html_e( 'Buckets to optimize', 's3-image-optimizer' ); ?></label></th>
+				<td>
+			<?php if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && S3_IMAGE_OPTIMIZER_BUCKET ) : ?>
+					<p>
+						<?php esc_html_e( 'You have currently defined the bucket constant (S3_IMAGE_OPTIMIZER_BUCKET):', 's3-image-optimizer' ); ?><br>
+						<?php echo esc_html( S3_IMAGE_OPTIMIZER_BUCKET ); ?>
+					</p>
+			<?php else : ?>
+				<?php if ( is_wp_error( $buckets ) ) : ?>
+					<?php esc_html_e( 'One bucket per line. If empty, all available buckets will be optimized.', 's3-image-optimizer' ); ?><br>
 				<?php else : ?>
-					<?php if ( is_wp_error( $buckets ) ) : ?>
-						<?php esc_html_e( 'One bucket per line. If empty, all available buckets will be optimized.', 's3-image-optimizer' ); ?><br>
-					<?php else : ?>
-						<?php esc_html_e( 'One bucket per line, must match one of the buckets listed below. If empty, all available buckets will be optimized.', 's3-image-optimizer' ); ?><br>
-					<?php endif; ?>
-					<?php
-					echo "<textarea id='s3io_bucketlist' name='s3io_bucketlist' rows='3' cols='40'>";
-					if ( ! empty( $bucket_list ) && is_array( $bucket_list ) ) {
-						foreach ( $bucket_list as $bucket ) {
-							echo esc_html( $bucket ) . "\n";
-						}
-					}
-					echo '</textarea>';
-					?>
+					<?php esc_html_e( 'One bucket per line, must match one of the buckets listed below. If empty, all available buckets will be optimized.', 's3-image-optimizer' ); ?><br>
 				<?php endif; ?>
-						<p class='description'>
 				<?php
-				if ( is_wp_error( $buckets ) && ! defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) ) {
-					/* translators: %s: AWS error message */
-					printf( esc_html__( 'Could not list buckets due to AWS error: %s', 's3-image-optimizer' ), '<br>' . wp_kses_post( $buckets->get_error_message() ) );
-					echo '<br>';
-				} elseif ( ! is_wp_error( $buckets ) ) {
-					esc_html_e( 'These are the buckets that we have access to optimize:', 's3-image-optimizer' );
-					echo '<br>';
-					foreach ( $buckets['Buckets'] as $bucket ) {
-						echo esc_html( $bucket['Name'] ) . "<br>\n";
+				echo "<textarea id='s3io_bucketlist' name='s3io_bucketlist' rows='3' cols='40'>";
+				if ( ! empty( $bucket_list ) && is_array( $bucket_list ) ) {
+					foreach ( $bucket_list as $bucket ) {
+						echo esc_html( $bucket ) . "\n";
 					}
 				}
+				echo '</textarea>';
 				?>
-						</p>
-					</td>
-				</tr>
-				<tr>
-					<th><?php esc_html_e( 'Sub-folders', 's3-image-optimizer' ); ?></th>
-					<td><?php esc_html_e( 'You may set the S3_IMAGE_OPTIMIZER_FOLDER constant to restrict optimization to a specific sub-directory of the bucket(s) above.', 's3-image-optimizer' ); ?></td>
-				</tr>
-			</table>
-			<p class='submit'><input type='submit' class='button-primary' value='<?php esc_attr_e( 'Save Changes', 's3-image-optimizer' ); ?>' /></p>
-		</form>
-	</div>
-				<?php
-}
-
-/**
- * Removes license key from the database and resets activation status.
- */
-function s3io_remove_license_key() {
-	if ( false === current_user_can( 'manage_options' ) ) {
-		wp_die( esc_html__( 'Access denied', 's3-image-optimizer' ) );
-	}
-	delete_option( 's3io_license_key' );
-	delete_option( 's3io_license_status' );
-	$sendback = wp_get_referer();
-	wp_safe_redirect( $sendback );
-	exit;
+			<?php endif; ?>
+					<p class='description'>
+			<?php
+			if ( is_wp_error( $buckets ) && ! defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) ) {
+				/* translators: %s: AWS error message */
+				printf( esc_html__( 'Could not list buckets due to AWS error: %s', 's3-image-optimizer' ), '<br>' . wp_kses_post( $buckets->get_error_message() ) );
+				echo '<br>';
+			} elseif ( ! is_wp_error( $buckets ) ) {
+				esc_html_e( 'These are the buckets that we have access to optimize:', 's3-image-optimizer' );
+				echo '<br>';
+				foreach ( $buckets['Buckets'] as $bucket ) {
+					echo esc_html( $bucket['Name'] ) . "<br>\n";
+				}
+			}
+			?>
+					</p>
+				</td>
+			</tr>
+			<tr>
+				<th><?php esc_html_e( 'Sub-folders', 's3-image-optimizer' ); ?></th>
+				<td><?php esc_html_e( 'You may set the S3_IMAGE_OPTIMIZER_FOLDER constant to restrict optimization to a specific sub-directory of the bucket(s) above.', 's3-image-optimizer' ); ?></td>
+			</tr>
+		</table>
+		<p class='submit'><input type='submit' class='button-primary' value='<?php esc_attr_e( 'Save Changes', 's3-image-optimizer' ); ?>' /></p>
+	</form>
+</div>
+	<?php
 }
 
 /**
@@ -541,28 +414,6 @@ function s3io_bucketlist_sanitize( $input ) {
 		}
 	}
 	return $bucket_array;
-}
-
-/**
- * Run sanity checks on license key provided by user.
- *
- * @param string $input The license key as entered.
- * @return string The license key after validation.
- */
-function s3io_license_sanitize( $input ) {
-	if ( empty( $input ) ) {
-		return '';
-	}
-	$input = trim( $input );
-	if ( preg_match( '/^[a-zA-Z0-9]+$/', $input ) ) {
-		$old = get_option( 's3io_license_key' );
-		if ( $old && $old !== $input ) {
-			delete_option( 's3io_license_status' );
-		}
-		return $input;
-	} else {
-		return '';
-	}
 }
 
 /**
@@ -1687,8 +1538,7 @@ function s3io_url_loop() {
 		echo wp_json_encode( $output );
 		die();
 	}
-	$url = filter_var( wp_unslash( $_REQUEST['s3io_url'] ), FILTER_SANITIZE_URL );
-	$url = filter_var( $url, FILTER_VALIDATE_URL, array( FILTER_FLAG_HOST_REQUIRED, FILTER_FLAG_PATH_REQUIRED ) );
+	$url = esc_url_raw( wp_unslash( $_REQUEST['s3io_url'] ) );
 	if ( ! empty( $url ) ) {
 		$url_args = s3io_get_args_from_url( $url );
 	}
@@ -1947,7 +1797,6 @@ function s3io_debug_message( $message ) {
 
 add_action( 'admin_enqueue_scripts', 's3io_bulk_script' );
 add_action( 'admin_enqueue_scripts', 's3io_url_script' );
-add_action( 'admin_action_s3io_remove_license_key', 's3io_remove_license_key' );
 add_action( 'admin_action_s3io_remove_aws_keys', 's3io_remove_aws_keys' );
 add_action( 'wp_ajax_s3io_query_table', 's3io_table' );
 add_action( 'wp_ajax_s3io_table_count', 's3io_table_count_optimized' );
