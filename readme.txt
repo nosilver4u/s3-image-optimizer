@@ -7,11 +7,12 @@ Requires PHP: 7.1
 Stable tag: 2.3
 License: GPLv3
 
-Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
+Compress images in Amazon S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 
 == Description ==
 
 The S3 Image Optimizer is a WordPress plugin that will allow you to retrieve all the images within one or more Amazon S3 buckets and optimize them using the EWWW Image Optimizer.
+S3 IO is also compatible with Digital Ocean Spaces.
 
 It includes a web-based bulk optimization process, and a wp-cli interface for massive buckets.
 
@@ -24,6 +25,11 @@ See the latest docs at [https://docs.ewww.io/article/22-how-to-use-s3-image-opti
 See the latest docs at [https://docs.ewww.io/article/22-how-to-use-s3-image-optimizer](https://docs.ewww.io/article/22-how-to-use-s3-image-optimizer).
 
 == Changelog ==
+
+= 2.4 =
+* fixed: failure in creating s3io/ working directory silently breaks bulk tools
+* fixed: sanitation for error messages was too aggressive
+* fixed: listBuckets error displayed even when S3_IMAGE_OPTIMIZER_BUCKET is defined
 
 = 2.3 =
 * fixed: conflict getting local uploads directory when S3 Uploads plugin is active

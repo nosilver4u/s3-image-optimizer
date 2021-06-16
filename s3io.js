@@ -85,7 +85,7 @@ jQuery(document).ready(function($) {
 		$.post(ajaxurl, s3io_url_loop_data, function(response) {
 			$('#s3io-bulk-widgets').show();
 			s3io_i++;
-			var s3io_response = $.parseJSON(response);
+			var s3io_response = JSON.parse(response);
 			$('#s3io-bulk-progressbar').progressbar("option", "value", s3io_i );
 			$('#s3io-bulk-counter').html(s3io_vars.optimized + ' ' + s3io_i + '/' + s3io_url_count);
 			if (s3io_response.error) {
@@ -120,7 +120,7 @@ jQuery(document).ready(function($) {
 				s3io_i++;
 				$('#s3io-bulk-progressbar').progressbar("option", "value", s3io_i );
 				$('#s3io-bulk-counter').html(s3io_vars.optimized + ' ' + s3io_i + '/' + s3io_url_count);
-				var s3io_response = $.parseJSON(response);
+				var s3io_response = JSON.parse(response);
 				if (s3io_response.error) {
 					$('#s3io-bulk-loading').html('<p style="color: red"><b>' + s3io_response.error + '</b></p>');
 				}
@@ -270,7 +270,7 @@ jQuery(document).ready(function($) {
 			s3io_wpnonce: s3io_vars._wpnonce,
 	        };
 	        var s3io_jqxhr = $.post(ajaxurl, s3io_scan_data, function(response) {
-			var s3io_response = $.parseJSON(response);
+			var s3io_response = JSON.parse(response);
 			if (s3io_response.error) {
 				$('#s3io-bulk-loading').html('<p style="color: red"><b>' + s3io_response.error + '</b></p>');
 			} else if (s3io_response.current) {
@@ -326,7 +326,7 @@ jQuery(document).ready(function($) {
 		$('.s3io-bulk-info').hide();
 		$('#s3io-force-empty').hide();
 	        $.post(ajaxurl, s3io_init_data, function(response) {
-			var s3io_init_response = $.parseJSON(response);
+			var s3io_init_response = JSON.parse(response);
 	                $('#s3io-bulk-loading').html(s3io_init_response.results);
 			$('#s3io-bulk-progressbar').progressbar({ max: s3io_attachments });
 			$('#s3io-bulk-counter').html(s3io_vars.optimized + ' 0/' + s3io_attachments);
@@ -340,7 +340,7 @@ jQuery(document).ready(function($) {
 	        };
 	        var s3io_jqxhr = $.post(ajaxurl, s3io_loop_data, function(response) {
 			s3io_i++;
-			var s3io_response = $.parseJSON(response);
+			var s3io_response = JSON.parse(response);
 			$('#s3io-bulk-progressbar').progressbar("option", "value", s3io_i );
 			$('#s3io-bulk-counter').html(s3io_vars.optimized + ' ' + s3io_i + '/' + s3io_attachments);
 			if (s3io_response.error) {
