@@ -4,7 +4,7 @@ Tags: amazon, s3, image, optimize, optimization, photo, picture, seo, compressio
 Requires at least: 5.5
 Tested up to: 5.7
 Requires PHP: 7.1
-Stable tag: 2.4
+Stable tag: 2.4.0
 License: GPLv3
 
 Compress images in Amazon S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
@@ -35,7 +35,7 @@ define( 'S3_IMAGE_OPTIMIZER_FOLDER', 'wp-content/uploads' );`
 
 `define( 'S3_IMAGE_OPTIMIZER_REGION', 'eu-west-1' );`
 
-[View the full list of region names.](http://docs.aws.amazon.com/general/latest/gr/rande.html#s3_region)
+[View the full list of region names.](https://docs.aws.amazon.com/general/latest/gr/rande.html#regional-endpoints)
 
 = Usage =
 * Go to Media->S3 Bulk Optimizer to start optimizing your bucket(s).
@@ -58,7 +58,7 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 
 == Changelog ==
 
-= 2.4 =
+= 2.4.0 =
 * fixed: failure in creating s3io/ working directory silently breaks bulk tools
 * fixed: sanitation for error messages was too aggressive
 * fixed: listBuckets error displayed even when S3_IMAGE_OPTIMIZER_BUCKET is defined
@@ -85,79 +85,3 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 = 2.0 =
 * added compatibility with Digital Ocean Spaces
 * lots of code cleanup and sanitation
-
-= 1.9 =
-* prevent s3io_resume option from autoloading
-* reset s3io_resume after completion
-
-= 1.8 =
-* fixed error with redeclaring ewwwio_debug_message() in some edge cases
-* fixed bulk optimizer UI bugs
-
-= 1.7 =
-* problem with AWS object context (not global when it needs to be)
-* updated plugin updater class
-* updated AWS SDK
-
-= 1.6 =
-* integrate AWS SDK and remove external AWS plugin dependency
-* catch errors better when AWS keys are not configured
-
-= 1.5 =
-* catch error when AWS plugin is not properly configured
-
-= 1.4 =
-* catch permissions errors on individual files
-* removed undefined constant
-* fixed undefined variable during wp-cli operation
-
-= 1.3 =
-* fixed error when using empty() on a constant that breaks really old PHP installs (5.4 or lower)
-
-= 1.2 =
-* catch fatal errors when S3 permissions are not sufficient
-* upgrade plugin updater class
-* added S3_IMAGE_OPTIMIZER_REGION to set region manually when permissions are too restrictive
-
-= 1.1 =
-* table updates more efficient and robust, searches by id first, and only by path if that fails
-* fixed potential issue with images optimized by url not being stored in database
-
-= 1.0 =
-* fixed issues with checking that a constant is empty in PHP <5.5
-* make sure to remove the leading slash from S3_IMAGE_OPTIMIZER_FOLDER
-
-= .9 =
-* added WP-CLI interface: 'wp-cli help s3io optimize' for more information
-* added constants to define bucket and sub-folder to optimize: S3_IMAGE_OPTIMIZER_BUCKET and S3_IMAGE_OPTIMIZER_FOLDER
-* fixed memory overload when running bulk operation with large s3 buckets
-* ported bulk optimizer improvements from core EWWW IO: renewable nonce for longer running operations, show last optimized image on top, collapsible and draggable ui from WP core, less AJAX requests
-* added escaping for all html to prevent any code injection from translations or database, and use JS for sleeping to avoid DOS by sleep timer
-* added S3 URL Optimizer to optimize individual images by their URL
-
-= .8 =
-* fixed fatal error when bucket/account requires v4 authentication
-* prevent debug information from displaying on settings page improperly
-
-= .7 =
-* fixed fatal error when bucket location is empty (us-east) in accounts with mixed regions
-
-= .6 =
-* fixed fatal error when bucket region is not set properly
-
-= .5 =
-* fixed fatal error when other plugins are using EDD SL Updates class
-* fixed acl not set when updating images
-
-= .4 =
-* ported table schema fixes from EWWW I.O.
-* added option for Frankfurt S3 authentication method
-
-= .3 =
-* automatic update checking and license activation
-
-= .2 =
-* bugfixes
-
-= .1 =
-* First release

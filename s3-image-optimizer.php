@@ -11,7 +11,7 @@ Plugin Name: S3 Image Optimizer
 Plugin URI: https://wordpress.org/plugins/s3-image-optimizer/
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Exactly WWW
-Version: 2.4
+Version: 2.4.0
 Author URI: https://ewww.io/
 License: GPLv3
 */
@@ -19,15 +19,11 @@ License: GPLv3
 /**
  * Constants
  */
-define( 'S3IO_VERSION', '2.391' );
+define( 'S3IO_VERSION', '2.40' );
 // This is the full path of the plugin file itself.
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // This is the path of the plugin file relative to the plugins/ folder.
 define( 'S3IO_PLUGIN_FILE_REL', 's3-image-optimizer/s3-image-optimizer.php' );
-// The site for auto-update checking.
-define( 'S3IO_SL_STORE_URL', 'https://ewww.io' );
-// Product ID for update checking.
-define( 'S3IO_SL_ITEM_ID', 11618 );
 
 add_action( 'admin_init', 's3io_admin_init' );
 add_action( 'admin_menu', 's3io_admin_menu', 60 );
@@ -460,7 +456,7 @@ function s3io_make_upload_dir() {
 		s3io_debug_message( 'S3_Uploads detected, removing upload_dir filters' );
 		remove_all_filters( 'upload_dir' );
 	}
-	$upload_dir = wp_upload_dir( null, false );
+	$upload_dir = wp_upload_dir( null, false, true );
 	if ( false !== strpos( $upload_dir['basedir'], 's3://' ) ) {
 		s3io_debug_message( "upload_dir has an s3 prefix: {$upload_dir['basedir']}" );
 		add_action( 'admin_notices', 's3io_make_upload_dir_remote_error' );
