@@ -11,7 +11,7 @@ Compress images in Amazon S3 buckets using lossless and lossy optimization metho
 
 == Description ==
 
-The S3 Image Optimizer will optimize all your images in 1-1,000+ Amazon S3 buckets and optimize them using the EWWW Image Optimizer. Since EWWW IO integrates directly with plugins like WP Offload Media, S3 IO is generally for folks who use a solution other than WP Offload Media to put their images on S3. But, if you have 20 sites sharing an S3 bucket, or have lots of buckets, and you would want to optimize them all from one place instead of 20 different sites, this is the plugin for you.
+The S3 Image Optimizer will optimize all your images in 1-1,000+ Amazon S3 buckets using the EWWW Image Optimizer. Since EWWW IO integrates directly with plugins like WP Offload Media, S3 IO is generally for folks who use a solution other than WP Offload Media to put their images on S3. But, if you have 20 sites sharing an S3 bucket, or have lots of buckets, and you would want to optimize them all from one place instead of 20 different sites, this is the plugin for you.
 
 S3 IO features a web-based bulk optimization process, and a WP-CLI interface for massive buckets. S3 IO is also compatible with Digital Ocean Spaces.
 
@@ -27,13 +27,15 @@ Now that we have that cleared up, let's get down to business. You need 2 plugins
 * [Setup your AWS access keys](https://docs.ewww.io/article/61-creating-an-amazon-web-services-aws-user), and then enter your access keys on the S3 IO settings page and save to confirm them.
 * Enter the buckets you wish to optimize in the appropriate text area. Leave it empty to have the plugin optimize all your buckets.
 * You may also define constants to restrict S3 IO to a specific bucket and/or sub-folder: S3_IMAGE_OPTIMIZER_BUCKET and S3_IMAGE_OPTIMIZER_FOLDER. These override the bucket list on the settings page, and will look like this (note the lack of leading/trailing slashes on the folder setting):
-
-`define( 'S3_IMAGE_OPTIMIZER_BUCKET', 'my-amazing-bucket-name' );
-define( 'S3_IMAGE_OPTIMIZER_FOLDER', 'wp-content/uploads' );`
+`
+define( 'S3_IMAGE_OPTIMIZER_BUCKET', 'my-amazing-bucket-name' );
+define( 'S3_IMAGE_OPTIMIZER_FOLDER', 'wp-content/uploads' );
+`
 
 * If your IAM user does not have access to list all buckets, you will generally also need to configure the region, something like this:
-
-`define( 'S3_IMAGE_OPTIMIZER_REGION', 'eu-west-1' );`
+`
+define( 'S3_IMAGE_OPTIMIZER_REGION', 'eu-west-1' );
+`
 
 [View the full list of region names.](https://docs.aws.amazon.com/general/latest/gr/rande.html#regional-endpoints)
 
