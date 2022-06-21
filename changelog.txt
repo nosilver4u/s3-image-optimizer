@@ -1,3 +1,7 @@
+= 2.4.1 =
+* fixed: PHP notice when updating db records
+* removed EDD_SL_Updater file/class
+
 = 2.4.0 =
 * fixed: failure in creating s3io/ working directory silently breaks bulk tools
 * fixed: sanitation for error messages was too aggressive

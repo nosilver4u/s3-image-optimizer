@@ -11,9 +11,9 @@ Plugin Name: S3 Image Optimizer
 Plugin URI: https://wordpress.org/plugins/s3-image-optimizer/
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Exactly WWW
-Version: 2.4.0
-Requires at least: 5.5
-Requires PHP: 7.1
+Version: 2.4.1
+Requires at least: 5.7
+Requires PHP: 7.2
 Author URI: https://ewww.io/
 License: GPLv3
 */
@@ -21,7 +21,7 @@ License: GPLv3
 /**
  * Constants
  */
-define( 'S3IO_VERSION', '2.40' );
+define( 'S3IO_VERSION', 241 );
 // This is the full path of the plugin file itself.
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // This is the path of the plugin file relative to the plugins/ folder.
@@ -1238,28 +1238,30 @@ function s3io_table_update( $path, $opt_size, $orig_size, $results_msg, $id = fa
 		s3io_debug_message( 'returning results without update' );
 		return $already_optimized['results'];
 	}
-	// Store info on the current image for future reference.
-	$updated = $wpdb->update(
-		$wpdb->s3io_images,
-		array(
-			'image_size' => $opt_size,
-			'results'    => $results_msg,
-		),
-		array(
-			'id' => $already_optimized['id'],
-		),
-		array(
-			'%d',
-			'%s',
-		),
-		array(
-			'%d',
-		)
-	);
-	if ( $updated ) {
-		s3io_debug_message( "updated results for $path" );
-		$wpdb->flush();
-		return $results_msg;
+	if ( ! empty( $already_optimized['id'] ) ) {
+		// Store info on the current image for future reference.
+		$updated = $wpdb->update(
+			$wpdb->s3io_images,
+			array(
+				'image_size' => $opt_size,
+				'results'    => $results_msg,
+			),
+			array(
+				'id' => $already_optimized['id'],
+			),
+			array(
+				'%d',
+				'%s',
+			),
+			array(
+				'%d',
+			)
+		);
+		if ( $updated ) {
+			s3io_debug_message( "updated results for $path" );
+			$wpdb->flush();
+			return $results_msg;
+		}
 	}
 	s3io_debug_message( 'no existing records found, inserting new one' );
 	$inserted = $wpdb->insert(
