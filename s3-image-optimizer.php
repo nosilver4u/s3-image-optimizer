@@ -1473,7 +1473,7 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 		if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
 			WP_CLI::line( "Finished upload of $filename.webp" );
 		}
-		unlink( $filename . 'webp' );
+		unlink( $filename . '.webp' );
 	}
 	s3io_table_update( $image_record['path'], $new_size, $fetch_result['ContentLength'], $results[1], $image_record['id'] );
 	// Make sure ewww doesn't keep a record of these files.
@@ -1662,7 +1662,7 @@ function s3io_url_loop() {
 		if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
 			WP_CLI::line( "Finished upload of $filename.webp" );
 		}
-		unlink( $filename . 'webp' );
+		unlink( $filename . '.webp' );
 	}
 	s3io_table_update( $url_args['path'], $new_size, $fetch_result['ContentLength'], $results[1], false, $url_args['bucket'] );
 	// Make sure ewww doesn't keep a record of these files.

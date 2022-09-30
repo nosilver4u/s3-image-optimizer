@@ -60,6 +60,9 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 
 == Changelog ==
 
+= 2.4.2 =
+* fixed: cleanup of WebP copies using incorrect path
+
 = 2.4.1 =
 * fixed: PHP notice when updating db records
 * removed EDD_SL_Updater file/class
