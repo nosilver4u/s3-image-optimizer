@@ -2,9 +2,9 @@
 Contributors: nosilver4u
 Tags: amazon, s3, image, optimize, optimization, photo, picture, seo, compression, wp-cli
 Requires at least: 5.7
-Tested up to: 6.0
+Tested up to: 6.1
 Requires PHP: 7.2
-Stable tag: 2.4.1
+Stable tag: 2.4.2
 License: GPLv3
 
 Compress images in Amazon S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
@@ -61,6 +61,7 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 == Changelog ==
 
 = 2.4.2 =
+* added: define custom endpoint for any S3-compatible storage via S3_IMAGE_OPTIMIZER_ENDPOINT
 * fixed: cleanup of WebP copies using incorrect path
 
 = 2.4.1 =
