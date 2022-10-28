@@ -23,7 +23,7 @@ First, it is worth noting that S3 IO is "site agnostic". For example, if you hav
 
 Now that we have that cleared up, let's get down to business. You need 2 plugins to make this work:  S3 Image Optimizer, and the [EWWW Image Optimizer](https://wordpress.org/plugins/ewww-image-optimizer/). Then...
 
-* Make sure you have configured EWWW I.O. with the settings you want to use.
+* Make sure you have configured EWWW IO with the settings you want to use.
 * [Setup your AWS access keys](https://docs.ewww.io/article/61-creating-an-amazon-web-services-aws-user), and then enter your access keys on the S3 IO settings page and save to confirm them.
 * Enter the buckets you wish to optimize in the appropriate text area. Leave it empty to have the plugin optimize all your buckets.
 * You may also define constants to restrict S3 IO to a specific bucket and/or sub-folder: S3_IMAGE_OPTIMIZER_BUCKET and S3_IMAGE_OPTIMIZER_FOLDER. These override the bucket list on the settings page, and will look like this (note the lack of leading/trailing slashes on the folder setting):
@@ -59,6 +59,10 @@ If you've tried everything, and WP-CLI isn't an option with your web host, find 
 Most problems we've seen are either permissions-related, or covered by the timeout stuff above. If you have a question, [shoot us an email](https://ewww.io/contact-us/)!
 
 == Changelog ==
+
+= 2.4.3 =
+* changed: display the values of any constants defined for endpoint, region, or folder restriction
+* fixed: check if the bucket list is an array before sanitizing
 
 = 2.4.2 =
 * added: define custom endpoint for any S3-compatible storage via S3_IMAGE_OPTIMIZER_ENDPOINT

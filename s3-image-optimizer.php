@@ -324,8 +324,8 @@ define( 'DBI_AWS_SECRET_ACCESS_KEY', '****************************************' 
 				<td>
 			<?php if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && S3_IMAGE_OPTIMIZER_BUCKET ) : ?>
 					<p>
-						<?php esc_html_e( 'You have currently defined the bucket constant (S3_IMAGE_OPTIMIZER_BUCKET):', 's3-image-optimizer' ); ?><br>
-						<?php echo esc_html( S3_IMAGE_OPTIMIZER_BUCKET ); ?>
+						<?php esc_html_e( 'You have currently defined the bucket constant (S3_IMAGE_OPTIMIZER_BUCKET):', 's3-image-optimizer' ); ?>
+						<pre><?php echo esc_html( S3_IMAGE_OPTIMIZER_BUCKET ); ?></pre>
 					</p>
 			<?php else : ?>
 				<?php if ( is_wp_error( $buckets ) ) : ?>
@@ -362,11 +362,29 @@ define( 'DBI_AWS_SECRET_ACCESS_KEY', '****************************************' 
 			</tr>
 			<tr>
 				<th><?php esc_html_e( 'Custom endpoint', 's3-image-optimizer' ); ?></th>
-				<td><?php esc_html_e( 'Set the S3_IMAGE_OPTIMIZER_ENDPOINT and S3_IMAGE_OPTIMIZER_REGION constants to use other S3-compatible providers.', 's3-image-optimizer' ); ?></td>
+				<td>
+			<?php if ( defined( 'S3_IMAGE_OPTIMIZER_ENDPOINT' ) && S3_IMAGE_OPTIMIZER_ENDPOINT ) : ?>
+					<?php /* translators: %s: S3-compatible endpoint/URL */ ?>
+					<?php printf( esc_html__( 'Using custom S3-compatible endpoint: %s', 's3-image-optimizer' ), '<pre>' . esc_url( S3_IMAGE_OPTIMIZER_ENDPOINT ) . '</pre>' ); ?>
+				<?php if ( defined( 'S3_IMAGE_OPTIMIZER_REGION' ) && S3_IMAGE_OPTIMIZER_REGION ) : ?>
+					<?php /* translators: %s: S3 region, like 'nyc3' */ ?>
+					<?php printf( esc_html__( 'User-defined region: %s', 's3-image-optimizer' ), '<pre>' . esc_html( S3_IMAGE_OPTIMIZER_REGION ) . '</pre>' ); ?>
+				<?php endif; ?>
+			<?php else : ?>
+					<?php esc_html_e( 'Set the S3_IMAGE_OPTIMIZER_ENDPOINT and S3_IMAGE_OPTIMIZER_REGION constants to use other S3-compatible providers.', 's3-image-optimizer' ); ?>
+			<?php endif; ?>
+				</td>
 			</tr>
 			<tr>
 				<th><?php esc_html_e( 'Sub-folders', 's3-image-optimizer' ); ?></th>
-				<td><?php esc_html_e( 'You may set the S3_IMAGE_OPTIMIZER_FOLDER constant to restrict optimization to a specific sub-directory of the bucket(s) above.', 's3-image-optimizer' ); ?></td>
+				<td>
+			<?php if ( defined( 'S3_IMAGE_OPTIMIZER_FOLDER' ) && S3_IMAGE_OPTIMIZER_FOLDER ) : ?>
+					<?php /* translators: %s: folder or path in S3 bucket */ ?>
+					<?php printf( esc_html__( 'Optimization has been restricted to this folder: %s', 's3-image-optimizer' ), '<pre>' . esc_html( ltrim( S3_IMAGE_OPTIMIZER_FOLDER, '/' ) ) . '</pre>' ); ?>
+			<?php else : ?>
+				<?php esc_html_e( 'You may set the S3_IMAGE_OPTIMIZER_FOLDER constant to restrict optimization to a specific sub-directory of the bucket(s) above.', 's3-image-optimizer' ); ?>
+			<?php endif; ?>
+				</td>
 			</tr>
 		</table>
 		<p class='submit'><input type='submit' class='button-primary' value='<?php esc_attr_e( 'Save Changes', 's3-image-optimizer' ); ?>' /></p>
@@ -410,7 +428,10 @@ function s3io_bucketlist_sanitize( $input ) {
 	} catch ( Exception $e ) {
 		$buckets = new WP_Error( 'exception', $e->getMessage() );
 	}
-	$bucket_array  = array();
+	$bucket_array = array();
+	if ( is_array( $input ) ) {
+		$input_buckets = $input;
+	}
 	$input_buckets = explode( "\n", $input );
 	foreach ( $input_buckets as $input_bucket ) {
 		$input_bucket = trim( $input_bucket );
