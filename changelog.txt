@@ -1,3 +1,7 @@
+= 2.4.3 =
+* changed: display the values of any constants defined for endpoint, region, or folder restriction
+* fixed: check if the bucket list is an array before sanitizing
+
 = 2.4.2 =
 * added: define custom endpoint for any S3-compatible storage via S3_IMAGE_OPTIMIZER_ENDPOINT
 * fixed: cleanup of WebP copies using incorrect path
