@@ -49,10 +49,9 @@ class S3IO_CLI extends WP_CLI_Command {
 		// because NextGEN hasn't flushed it's buffers...
 		while ( @ob_end_flush() ); // phpcs:ignore
 
-		if ( empty( $args[0] ) ) {
-			$delay = ewww_image_optimizer_get_option( 'ewww_image_optimizer_delay' );
-		} else {
-			$delay = $args[0];
+		$delay = 0;
+		if ( ! empty( $args[0] ) ) {
+			$delay = (int) $args[0];
 		}
 
 		if ( ! empty( $assoc_args['reset'] ) ) {
@@ -70,7 +69,7 @@ class S3IO_CLI extends WP_CLI_Command {
 		WP_CLI::line( sprintf( __( 'Optimizing with a %d second pause between images.', 's3-image-optimizer' ), $delay ) );
 
 		// Let's get started, shall we?
-		ewww_image_optimizer_admin_init();
+		// ewww_image_optimizer_admin_init();
 
 		$upload_dir = wp_upload_dir();
 		$upload_dir = trailingslashit( $upload_dir['basedir'] ) . 's3io/';
