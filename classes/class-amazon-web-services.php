@@ -165,7 +165,7 @@ class Amazon_Web_Services {
 	 * using the defined AWS key and secret
 	 *
 	 * @return Aws An AWS object with an established connection.
-	 * @throws Exception AWS configuration/connection error.
+	 * @throws \Exception AWS configuration/connection error.
 	 */
 	function get_client() {
 		if ( $this->needs_access_keys() ) {
