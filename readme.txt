@@ -1,8 +1,8 @@
 === S3 Image Optimizer ===
 Contributors: nosilver4u
 Tags: amazon, s3, image, optimize, optimization, photo, picture, seo, compression, wp-cli
-Requires at least: 5.7
-Tested up to: 6.1
+Requires at least: 6.0
+Tested up to: 6.2
 Requires PHP: 7.2
 Stable tag: 2.4.3
 License: GPLv3
@@ -63,6 +63,7 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 = 2.5.0 =
 * added: compatibility with EWWW Image Optimizer 7+ and better future-proofing to detect compatibility errors
 * updated: AWS SDK to latest version
+* updated: improved PHP 8.2 compatibility, though there are still (non-critical) deprecation notices from the AWS SDK
 
 = 2.4.3 =
 * changed: display the values of any constants defined for endpoint, region, or folder restriction

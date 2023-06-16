@@ -182,13 +182,13 @@ class Amazon_Web_Services {
 				);
 			}
 
-			$args             = \apply_filters( 'aws_get_client_args', $args );
-			$this->aws_client = new Sdk( $args );
+			$args       = \apply_filters( 'aws_get_client_args', $args );
+			$aws_client = new Sdk( $args );
 
 			if ( empty( $args['region'] ) || $this->default_region === $args['region'] ) {
-				$this->client = $this->aws_client->createMultiRegionS3( $args );
+				$this->client = $aws_client->createMultiRegionS3( $args );
 			} else {
-				$this->client = $this->aws_client->createS3( $args );
+				$this->client = $aws_client->createS3( $args );
 			}
 		}
 

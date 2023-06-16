@@ -68,9 +68,6 @@ class S3IO_CLI extends WP_CLI_Command {
 		/* translators: %d: number of seconds */
 		WP_CLI::line( sprintf( __( 'Optimizing with a %d second pause between images.', 's3-image-optimizer' ), $delay ) );
 
-		// Let's get started, shall we?
-		// ewww_image_optimizer_admin_init();
-
 		$upload_dir = wp_upload_dir();
 		$upload_dir = trailingslashit( $upload_dir['basedir'] ) . 's3io/';
 		if ( ! is_dir( $upload_dir ) ) {
