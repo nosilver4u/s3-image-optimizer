@@ -16,7 +16,6 @@ branches:
 php:
   - 7.2
   - 7.4
-  - 8.2
 
 env:
   - WP_VERSION=latest WP_MULTISITE=0
