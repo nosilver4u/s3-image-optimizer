@@ -4,6 +4,8 @@ namespace S3IO\Aws3\Aws\Api\Serializer;
 
 use S3IO\Aws3\Aws\Api\Service;
 use S3IO\Aws3\Aws\CommandInterface;
+use S3IO\Aws3\Aws\EndpointV2\EndpointProviderV2;
+use S3IO\Aws3\Aws\EndpointV2\EndpointV2SerializerTrait;
 use S3IO\Aws3\GuzzleHttp\Psr7\Request;
 use S3IO\Aws3\Psr\Http\Message\RequestInterface;
 /**
@@ -12,6 +14,7 @@ use S3IO\Aws3\Psr\Http\Message\RequestInterface;
  */
 class JsonRpcSerializer
 {
+    use EndpointV2SerializerTrait;
     /** @var JsonBody */
     private $jsonFormatter;
     /** @var string */
@@ -25,25 +28,32 @@ class JsonRpcSerializer
      * @param string   $endpoint      Endpoint to connect to
      * @param JsonBody $jsonFormatter Optional JSON formatter to use
      */
-    public function __construct(\S3IO\Aws3\Aws\Api\Service $api, $endpoint, \S3IO\Aws3\Aws\Api\Serializer\JsonBody $jsonFormatter = null)
+    public function __construct(Service $api, $endpoint, JsonBody $jsonFormatter = null)
     {
         $this->endpoint = $endpoint;
         $this->api = $api;
-        $this->jsonFormatter = $jsonFormatter ?: new \S3IO\Aws3\Aws\Api\Serializer\JsonBody($this->api);
-        $this->contentType = \S3IO\Aws3\Aws\Api\Serializer\JsonBody::getContentType($api);
+        $this->jsonFormatter = $jsonFormatter ?: new JsonBody($this->api);
+        $this->contentType = JsonBody::getContentType($api);
     }
     /**
      * When invoked with an AWS command, returns a serialization array
      * containing "method", "uri", "headers", and "body" key value pairs.
      *
-     * @param CommandInterface $command
+     * @param CommandInterface $command Command to serialize into a request.
+     * @param $endpointProvider Provider used for dynamic endpoint resolution.
+     * @param $clientArgs Client arguments used for dynamic endpoint resolution.
      *
      * @return RequestInterface
      */
-    public function __invoke(\S3IO\Aws3\Aws\CommandInterface $command)
+    public function __invoke(CommandInterface $command, $endpointProvider = null, $clientArgs = null)
     {
-        $name = $command->getName();
-        $operation = $this->api->getOperation($name);
-        return new \S3IO\Aws3\GuzzleHttp\Psr7\Request($operation['http']['method'], $this->endpoint, ['X-Amz-Target' => $this->api->getMetadata('targetPrefix') . '.' . $name, 'Content-Type' => $this->contentType], $this->jsonFormatter->build($operation->getInput(), $command->toArray()));
+        $operationName = $command->getName();
+        $operation = $this->api->getOperation($operationName);
+        $commandArgs = $command->toArray();
+        $headers = ['X-Amz-Target' => $this->api->getMetadata('targetPrefix') . '.' . $operationName, 'Content-Type' => $this->contentType];
+        if ($endpointProvider instanceof EndpointProviderV2) {
+            $this->setRequestOptions($endpointProvider, $command, $operation, $commandArgs, $clientArgs, $headers);
+        }
+        return new Request($operation['http']['method'], $this->endpoint, $headers, $this->jsonFormatter->build($operation->getInput(), $commandArgs));
     }
 }

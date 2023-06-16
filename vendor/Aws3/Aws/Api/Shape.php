@@ -5,7 +5,7 @@ namespace S3IO\Aws3\Aws\Api;
 /**
  * Base class representing a modeled shape.
  */
-class Shape extends \S3IO\Aws3\Aws\Api\AbstractModel
+class Shape extends AbstractModel
 {
     /**
      * Get a concrete shape for the given definition.
@@ -16,14 +16,14 @@ class Shape extends \S3IO\Aws3\Aws\Api\AbstractModel
      * @return mixed
      * @throws \RuntimeException if the type is invalid
      */
-    public static function create(array $definition, \S3IO\Aws3\Aws\Api\ShapeMap $shapeMap)
+    public static function create(array $definition, ShapeMap $shapeMap)
     {
-        static $map = ['structure' => 'S3IO\\Aws3\\Aws\\Api\\StructureShape', 'map' => 'S3IO\\Aws3\\Aws\\Api\\MapShape', 'list' => 'S3IO\\Aws3\\Aws\\Api\\ListShape', 'timestamp' => 'S3IO\\Aws3\\Aws\\Api\\TimestampShape', 'integer' => 'S3IO\\Aws3\\Aws\\Api\\Shape', 'double' => 'S3IO\\Aws3\\Aws\\Api\\Shape', 'float' => 'S3IO\\Aws3\\Aws\\Api\\Shape', 'long' => 'S3IO\\Aws3\\Aws\\Api\\Shape', 'string' => 'S3IO\\Aws3\\Aws\\Api\\Shape', 'byte' => 'S3IO\\Aws3\\Aws\\Api\\Shape', 'character' => 'S3IO\\Aws3\\Aws\\Api\\Shape', 'blob' => 'S3IO\\Aws3\\Aws\\Api\\Shape', 'boolean' => 'S3IO\\Aws3\\Aws\\Api\\Shape'];
+        static $map = ['structure' => StructureShape::class, 'map' => MapShape::class, 'list' => ListShape::class, 'timestamp' => TimestampShape::class, 'integer' => Shape::class, 'double' => Shape::class, 'float' => Shape::class, 'long' => Shape::class, 'string' => Shape::class, 'byte' => Shape::class, 'character' => Shape::class, 'blob' => Shape::class, 'boolean' => Shape::class];
         if (isset($definition['shape'])) {
             return $shapeMap->resolve($definition);
         }
         if (!isset($map[$definition['type']])) {
-            throw new \RuntimeException('Invalid type: ' . print_r($definition, true));
+            throw new \RuntimeException('Invalid type: ' . \print_r($definition, \true));
         }
         $type = $map[$definition['type']];
         return new $type($definition, $shapeMap);
@@ -45,5 +45,12 @@ class Shape extends \S3IO\Aws3\Aws\Api\AbstractModel
     public function getName()
     {
         return $this->definition['name'];
+    }
+    /**
+     * Get a context param definition.
+     */
+    public function getContextParam()
+    {
+        return $this->contextParam;
     }
 }

@@ -34,12 +34,13 @@ trait DecryptionTrait
     protected abstract function buildCipherMethod($cipherName, $iv, $keySize);
     /**
      * Builds an AesStreamInterface using cipher options loaded from the
-     * MetadataEnvelope and MaterialsProvider.
+     * MetadataEnvelope and MaterialsProvider. Can decrypt data from both the
+     * legacy and V2 encryption client workflows.
      *
      * @param string $cipherText Plain-text data to be encrypted using the
      *                           materials, algorithm, and data provided.
-     * @param MaterialsProvider $provider A provider to supply and encrypt
-     *                                    materials used in encryption.
+     * @param MaterialsProviderInterface $provider A provider to supply and encrypt
+     *                                             materials used in encryption.
      * @param MetadataEnvelope $envelope A storage envelope for encryption
      *                                   metadata to be read from.
      * @param array $cipherOptions Additional verification options.
@@ -51,32 +52,32 @@ trait DecryptionTrait
      *
      * @internal
      */
-    public function decrypt($cipherText, \S3IO\Aws3\Aws\Crypto\MaterialsProvider $provider, \S3IO\Aws3\Aws\Crypto\MetadataEnvelope $envelope, array $cipherOptions = [])
+    public function decrypt($cipherText, MaterialsProviderInterface $provider, MetadataEnvelope $envelope, array $cipherOptions = [])
     {
-        $cipherOptions['Iv'] = base64_decode($envelope[\S3IO\Aws3\Aws\Crypto\MetadataEnvelope::IV_HEADER]);
-        $cipherOptions['TagLength'] = $envelope[\S3IO\Aws3\Aws\Crypto\MetadataEnvelope::CRYPTO_TAG_LENGTH_HEADER] / 8;
-        $cek = $provider->decryptCek(base64_decode($envelope[\S3IO\Aws3\Aws\Crypto\MetadataEnvelope::CONTENT_KEY_V2_HEADER]), json_decode($envelope[\S3IO\Aws3\Aws\Crypto\MetadataEnvelope::MATERIALS_DESCRIPTION_HEADER], true));
-        $cipherOptions['KeySize'] = strlen($cek) * 8;
-        $cipherOptions['Cipher'] = $this->getCipherFromAesName($envelope[\S3IO\Aws3\Aws\Crypto\MetadataEnvelope::CONTENT_CRYPTO_SCHEME_HEADER]);
-        $decryptionSteam = $this->getDecryptingStream($cipherText, $cek, $cipherOptions);
+        $cipherOptions['Iv'] = \base64_decode($envelope[MetadataEnvelope::IV_HEADER]);
+        $cipherOptions['TagLength'] = $envelope[MetadataEnvelope::CRYPTO_TAG_LENGTH_HEADER] / 8;
+        $cek = $provider->decryptCek(\base64_decode($envelope[MetadataEnvelope::CONTENT_KEY_V2_HEADER]), \json_decode($envelope[MetadataEnvelope::MATERIALS_DESCRIPTION_HEADER], \true));
+        $cipherOptions['KeySize'] = \strlen($cek) * 8;
+        $cipherOptions['Cipher'] = $this->getCipherFromAesName($envelope[MetadataEnvelope::CONTENT_CRYPTO_SCHEME_HEADER]);
+        $decryptionStream = $this->getDecryptingStream($cipherText, $cek, $cipherOptions);
         unset($cek);
-        return $decryptionSteam;
+        return $decryptionStream;
     }
-    private function getTagFromCiphertextStream(\S3IO\Aws3\Psr\Http\Message\StreamInterface $cipherText, $tagLength)
+    private function getTagFromCiphertextStream(StreamInterface $cipherText, $tagLength)
     {
         $cipherTextSize = $cipherText->getSize();
         if ($cipherTextSize == null || $cipherTextSize <= 0) {
             throw new \RuntimeException('Cannot decrypt a stream of unknown' . ' size.');
         }
-        return (string) new \S3IO\Aws3\GuzzleHttp\Psr7\LimitStream($cipherText, $tagLength, $cipherTextSize - $tagLength);
+        return (string) new LimitStream($cipherText, $tagLength, $cipherTextSize - $tagLength);
     }
-    private function getStrippedCiphertextStream(\S3IO\Aws3\Psr\Http\Message\StreamInterface $cipherText, $tagLength)
+    private function getStrippedCiphertextStream(StreamInterface $cipherText, $tagLength)
     {
         $cipherTextSize = $cipherText->getSize();
         if ($cipherTextSize == null || $cipherTextSize <= 0) {
             throw new \RuntimeException('Cannot decrypt a stream of unknown' . ' size.');
         }
-        return new \S3IO\Aws3\GuzzleHttp\Psr7\LimitStream($cipherText, $cipherTextSize - $tagLength, 0);
+        return new LimitStream($cipherText, $cipherTextSize - $tagLength, 0);
     }
     /**
      * Generates a stream that wraps the cipher text with the proper cipher and
@@ -95,14 +96,14 @@ trait DecryptionTrait
      */
     protected function getDecryptingStream($cipherText, $cek, $cipherOptions)
     {
-        $cipherTextStream = \S3IO\Aws3\GuzzleHttp\Psr7\stream_for($cipherText);
+        $cipherTextStream = Psr7\Utils::streamFor($cipherText);
         switch ($cipherOptions['Cipher']) {
             case 'gcm':
                 $cipherOptions['Tag'] = $this->getTagFromCiphertextStream($cipherTextStream, $cipherOptions['TagLength']);
-                return new \S3IO\Aws3\Aws\Crypto\AesGcmDecryptingStream($this->getStrippedCiphertextStream($cipherTextStream, $cipherOptions['TagLength']), $cek, $cipherOptions['Iv'], $cipherOptions['Tag'], $cipherOptions['Aad'] = isset($cipherOptions['Aad']) ? $cipherOptions['Aad'] : null, $cipherOptions['TagLength'] ?: null, $cipherOptions['KeySize']);
+                return new AesGcmDecryptingStream($this->getStrippedCiphertextStream($cipherTextStream, $cipherOptions['TagLength']), $cek, $cipherOptions['Iv'], $cipherOptions['Tag'], $cipherOptions['Aad'] = isset($cipherOptions['Aad']) ? $cipherOptions['Aad'] : '', $cipherOptions['TagLength'] ?: null, $cipherOptions['KeySize']);
             default:
                 $cipherMethod = $this->buildCipherMethod($cipherOptions['Cipher'], $cipherOptions['Iv'], $cipherOptions['KeySize']);
-                return new \S3IO\Aws3\Aws\Crypto\AesDecryptingStream($cipherTextStream, $cek, $cipherMethod);
+                return new AesDecryptingStream($cipherTextStream, $cek, $cipherMethod);
         }
     }
 }

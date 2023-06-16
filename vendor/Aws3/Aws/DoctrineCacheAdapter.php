@@ -3,11 +3,11 @@
 namespace S3IO\Aws3\Aws;
 
 use S3IO\Aws3\Doctrine\Common\Cache\Cache;
-class DoctrineCacheAdapter implements \S3IO\Aws3\Aws\CacheInterface, \S3IO\Aws3\Doctrine\Common\Cache\Cache
+class DoctrineCacheAdapter implements CacheInterface, Cache
 {
     /** @var Cache */
     private $cache;
-    public function __construct(\S3IO\Aws3\Doctrine\Common\Cache\Cache $cache)
+    public function __construct(Cache $cache)
     {
         $this->cache = $cache;
     }

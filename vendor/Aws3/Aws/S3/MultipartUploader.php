@@ -12,7 +12,7 @@ use S3IO\Aws3\Aws\S3\Exception\S3MultipartUploadException;
 /**
  * Encapsulates the execution of a multipart upload to S3 or Glacier.
  */
-class MultipartUploader extends \S3IO\Aws3\Aws\Multipart\AbstractUploader
+class MultipartUploader extends AbstractUploader
 {
     use MultipartUploadingTrait;
     const PART_MIN_SIZE = 5242880;
@@ -58,9 +58,9 @@ class MultipartUploader extends \S3IO\Aws3\Aws\Multipart\AbstractUploader
      * @param mixed             $source Source of the data to upload.
      * @param array             $config Configuration used to perform the upload.
      */
-    public function __construct(\S3IO\Aws3\Aws\S3\S3ClientInterface $client, $source, array $config = [])
+    public function __construct(S3ClientInterface $client, $source, array $config = [])
     {
-        parent::__construct($client, $source, array_change_key_case($config) + ['bucket' => null, 'key' => null, 'exception_class' => \S3IO\Aws3\Aws\S3\Exception\S3MultipartUploadException::class]);
+        parent::__construct($client, $source, \array_change_key_case($config) + ['bucket' => null, 'key' => null, 'exception_class' => S3MultipartUploadException::class]);
     }
     protected function loadUploadWorkflowInfo()
     {
@@ -80,32 +80,35 @@ class MultipartUploader extends \S3IO\Aws3\Aws\Multipart\AbstractUploader
         // Read from the source to create the body stream.
         if ($seekable) {
             // Case 1: Source is seekable, use lazy stream to defer work.
-            $body = $this->limitPartStream(new \S3IO\Aws3\GuzzleHttp\Psr7\LazyOpenStream($this->source->getMetadata('uri'), 'r'));
+            $body = $this->limitPartStream(new Psr7\LazyOpenStream($this->source->getMetadata('uri'), 'r'));
         } else {
             // Case 2: Stream is not seekable; must store in temp stream.
             $source = $this->limitPartStream($this->source);
             $source = $this->decorateWithHashes($source, $data);
-            $body = \S3IO\Aws3\GuzzleHttp\Psr7\stream_for();
-            \S3IO\Aws3\GuzzleHttp\Psr7\copy_to_stream($source, $body);
+            $body = Psr7\Utils::streamFor();
+            Psr7\Utils::copyToStream($source, $body);
         }
         $contentLength = $body->getSize();
         // Do not create a part if the body size is zero.
         if ($contentLength === 0) {
-            return false;
+            return \false;
         }
         $body->seek(0);
         $data['Body'] = $body;
+        if (isset($config['add_content_md5']) && $config['add_content_md5'] === \true) {
+            $data['AddContentMD5'] = \true;
+        }
         $data['ContentLength'] = $contentLength;
         return $data;
     }
-    protected function extractETag(\S3IO\Aws3\Aws\ResultInterface $result)
+    protected function extractETag(ResultInterface $result)
     {
         return $result['ETag'];
     }
     protected function getSourceMimeType()
     {
         if ($uri = $this->source->getMetadata('uri')) {
-            return \S3IO\Aws3\GuzzleHttp\Psr7\mimetype_from_filename($uri) ?: 'application/octet-stream';
+            return Psr7\MimeType::fromFilename($uri) ?: 'application/octet-stream';
         }
     }
     protected function getSourceSize()
@@ -120,12 +123,12 @@ class MultipartUploader extends \S3IO\Aws3\Aws\Multipart\AbstractUploader
      *
      * @return Stream
      */
-    private function decorateWithHashes(\S3IO\Aws3\Psr\Http\Message\StreamInterface $stream, array &$data)
+    private function decorateWithHashes(Stream $stream, array &$data)
     {
         // Decorate source with a hashing stream
-        $hash = new \S3IO\Aws3\Aws\PhpHash('sha256');
-        return new \S3IO\Aws3\Aws\HashingStream($stream, $hash, function ($result) use(&$data) {
-            $data['ContentSHA256'] = bin2hex($result);
+        $hash = new PhpHash('sha256');
+        return new HashingStream($stream, $hash, function ($result) use(&$data) {
+            $data['ContentSHA256'] = \bin2hex($result);
         });
     }
 }

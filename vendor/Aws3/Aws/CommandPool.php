@@ -2,6 +2,7 @@
 
 namespace S3IO\Aws3\Aws;
 
+use S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface;
 use S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface;
 use S3IO\Aws3\GuzzleHttp\Promise\EachPromise;
 /**
@@ -10,7 +11,7 @@ use S3IO\Aws3\GuzzleHttp\Promise\EachPromise;
  * The pool will read command objects from an iterator until it is cancelled or
  * until the iterator is consumed.
  */
-class CommandPool implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
+class CommandPool implements PromisorInterface
 {
     /** @var EachPromise */
     private $each;
@@ -40,7 +41,7 @@ class CommandPool implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
      * @param array|\Iterator    $commands Iterable that yields commands.
      * @param array              $config   Associative array of options.
      */
-    public function __construct(\S3IO\Aws3\Aws\AwsClientInterface $client, $commands, array $config = [])
+    public function __construct(AwsClientInterface $client, $commands, array $config = [])
     {
         if (!isset($config['concurrency'])) {
             $config['concurrency'] = 25;
@@ -61,10 +62,10 @@ class CommandPool implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
                 }
             }
         };
-        $this->each = new \S3IO\Aws3\GuzzleHttp\Promise\EachPromise($mapFn($commands), $config);
+        $this->each = new EachPromise($mapFn($commands), $config);
     }
     /**
-     * @return \GuzzleHttp\Promise\PromiseInterface
+     * @return PromiseInterface
      */
     public function promise()
     {
@@ -81,13 +82,13 @@ class CommandPool implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
      * @return array
      * @see \Aws\CommandPool::__construct for available configuration options.
      */
-    public static function batch(\S3IO\Aws3\Aws\AwsClientInterface $client, $commands, array $config = [])
+    public static function batch(AwsClientInterface $client, $commands, array $config = [])
     {
         $results = [];
         self::cmpCallback($config, 'fulfilled', $results);
         self::cmpCallback($config, 'rejected', $results);
         return (new self($client, $commands, $config))->promise()->then(static function () use(&$results) {
-            ksort($results);
+            \ksort($results);
             return $results;
         })->wait();
     }
@@ -99,7 +100,7 @@ class CommandPool implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
         if (!isset($config['before'])) {
             return null;
         }
-        if (is_callable($config['before'])) {
+        if (\is_callable($config['before'])) {
             return $config['before'];
         }
         throw new \InvalidArgumentException('before must be callable');

@@ -11,10 +11,19 @@ use S3IO\Aws3\Aws\S3\S3ClientInterface;
 use S3IO\Aws3\GuzzleHttp\Promise;
 /**
  * Encapsulates the execution of a multipart upload of an encrypted object to S3.
+ *
+ * Legacy implementation using older encryption workflow. Use
+ * S3EncryptionMultipartUploaderV2 if possible.
+ *
+ * @deprecated
  */
-class S3EncryptionMultipartUploader extends \S3IO\Aws3\Aws\S3\MultipartUploader
+class S3EncryptionMultipartUploader extends MultipartUploader
 {
-    use EncryptionTrait, CipherBuilderTrait, CryptoParamsTrait;
+    use CipherBuilderTrait;
+    use CryptoParamsTrait;
+    use EncryptionTrait;
+    use UserAgentTrait;
+    const CRYPTO_VERSION = '1n';
     /**
      * Returns if the passed cipher name is supported for encryption by the SDK.
      *
@@ -24,7 +33,7 @@ class S3EncryptionMultipartUploader extends \S3IO\Aws3\Aws\S3\MultipartUploader
      */
     public static function isSupportedCipher($cipherName)
     {
-        return in_array($cipherName, AbstractCryptoClient::$supportedCiphers);
+        return \in_array($cipherName, AbstractCryptoClient::$supportedCiphers);
     }
     private $provider;
     private $instructionFileSuffix;
@@ -39,7 +48,8 @@ class S3EncryptionMultipartUploader extends \S3IO\Aws3\Aws\S3\MultipartUploader
      * - @CipherOptions: (array) Cipher options for encrypting data. A Cipher
      *   is required. Accepts the following options:
      *       - Cipher: (string) cbc|gcm
-     *            See also: AbstractCryptoClient::$supportedCiphers
+     *            See also: AbstractCryptoClient::$supportedCiphers. Note that
+     *            cbc is deprecated and gcm should be used when possible.
      *       - KeySize: (int) 128|192|256
      *            See also: MaterialsProvider::$supportedKeySizes
      *       - Aad: (string) Additional authentication data. This option is
@@ -88,8 +98,9 @@ class S3EncryptionMultipartUploader extends \S3IO\Aws3\Aws\S3\MultipartUploader
      * @param mixed             $source Source of the data to upload.
      * @param array             $config Configuration used to perform the upload.
      */
-    public function __construct(\S3IO\Aws3\Aws\S3\S3ClientInterface $client, $source, array $config = [])
+    public function __construct(S3ClientInterface $client, $source, array $config = [])
     {
+        $this->appendUserAgent($client, 'feat/s3-encrypt/' . self::CRYPTO_VERSION);
         $this->client = $client;
         $config['params'] = [];
         if (!empty($config['bucket'])) {
@@ -112,14 +123,14 @@ class S3EncryptionMultipartUploader extends \S3IO\Aws3\Aws\S3\MultipartUploader
     }
     private static function getDefaultStrategy()
     {
-        return new \S3IO\Aws3\Aws\S3\Crypto\HeadersMetadataStrategy();
+        return new HeadersMetadataStrategy();
     }
     private function getEncryptingDataPreparer()
     {
         return function () {
             // Defer encryption work until promise is executed
-            $envelope = new \S3IO\Aws3\Aws\Crypto\MetadataEnvelope();
-            list($this->source, $params) = \S3IO\Aws3\GuzzleHttp\Promise\promise_for($this->encrypt($this->source, $this->config['@cipheroptions'] ?: [], $this->provider, $envelope))->then(function ($bodyStream) use($envelope) {
+            $envelope = new MetadataEnvelope();
+            list($this->source, $params) = Promise\Create::promiseFor($this->encrypt($this->source, $this->config['@cipheroptions'] ?: [], $this->provider, $envelope))->then(function ($bodyStream) use($envelope) {
                 $params = $this->strategy->save($envelope, $this->config['params']);
                 return [$bodyStream, $params];
             })->wait();

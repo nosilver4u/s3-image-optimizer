@@ -5,9 +5,17 @@ namespace S3IO\Aws3\Aws\Crypto;
 use S3IO\Aws3\Aws\Kms\KmsClient;
 /**
  * Uses KMS to supply materials for encrypting and decrypting data.
+ *
+ * Legacy implementation that supports legacy S3EncryptionClient and
+ * S3EncryptionMultipartUploader, which use an older encryption workflow. Use
+ * KmsMaterialsProviderV2 with S3EncryptionClientV2 or
+ * S3EncryptionMultipartUploaderV2 if possible.
+ *
+ * @deprecated
  */
-class KmsMaterialsProvider extends \S3IO\Aws3\Aws\Crypto\MaterialsProvider
+class KmsMaterialsProvider extends MaterialsProvider implements MaterialsProviderInterface
 {
+    const WRAP_ALGORITHM_NAME = 'kms';
     private $kmsClient;
     private $kmsKeyId;
     /**
@@ -16,21 +24,21 @@ class KmsMaterialsProvider extends \S3IO\Aws3\Aws\Crypto\MaterialsProvider
      * @param string $kmsKeyId The private KMS key id to be used for encrypting
      *                         and decrypting keys.
      */
-    public function __construct(\S3IO\Aws3\Aws\Kms\KmsClient $kmsClient, $kmsKeyId = null)
+    public function __construct(KmsClient $kmsClient, $kmsKeyId = null)
     {
         $this->kmsClient = $kmsClient;
         $this->kmsKeyId = $kmsKeyId;
     }
-    public function fromDecryptionEnvelope(\S3IO\Aws3\Aws\Crypto\MetadataEnvelope $envelope)
+    public function fromDecryptionEnvelope(MetadataEnvelope $envelope)
     {
-        if (empty($envelope[\S3IO\Aws3\Aws\Crypto\MetadataEnvelope::MATERIALS_DESCRIPTION_HEADER])) {
-            throw new \RuntimeException('Not able to detect kms_cmk_id from an' . ' empty materials description.');
+        if (empty($envelope[MetadataEnvelope::MATERIALS_DESCRIPTION_HEADER])) {
+            throw new \RuntimeException('Not able to detect the materials description.');
         }
-        $materialsDescription = json_decode($envelope[\S3IO\Aws3\Aws\Crypto\MetadataEnvelope::MATERIALS_DESCRIPTION_HEADER], true);
-        if (empty($materialsDescription['kms_cmk_id'])) {
-            throw new \RuntimeException('Not able to detect kms_cmk_id from kms' . ' materials description.');
+        $materialsDescription = \json_decode($envelope[MetadataEnvelope::MATERIALS_DESCRIPTION_HEADER], \true);
+        if (empty($materialsDescription['kms_cmk_id']) && empty($materialsDescription['aws:x-amz-cek-alg'])) {
+            throw new \RuntimeException('Not able to detect kms_cmk_id (legacy' . ' implementation) or aws:x-amz-cek-alg (current implementation)' . ' from kms materials description.');
         }
-        return new \S3IO\Aws3\Aws\Crypto\KmsMaterialsProvider($this->kmsClient, $materialsDescription['kms_cmk_id']);
+        return new self($this->kmsClient, isset($materialsDescription['kms_cmk_id']) ? $materialsDescription['kms_cmk_id'] : null);
     }
     /**
      * The KMS key id for use in matching this Provider to its keys,
@@ -44,7 +52,7 @@ class KmsMaterialsProvider extends \S3IO\Aws3\Aws\Crypto\MaterialsProvider
     }
     public function getWrapAlgorithmName()
     {
-        return 'kms';
+        return self::WRAP_ALGORITHM_NAME;
     }
     /**
      * Takes a content encryption key (CEK) and description to return an encrypted
@@ -61,7 +69,7 @@ class KmsMaterialsProvider extends \S3IO\Aws3\Aws\Crypto\MaterialsProvider
     public function encryptCek($unencryptedCek, $materialDescription)
     {
         $encryptedDataKey = $this->kmsClient->encrypt(['Plaintext' => $unencryptedCek, 'KeyId' => $this->kmsKeyId, 'EncryptionContext' => $materialDescription]);
-        return base64_encode($encryptedDataKey['CiphertextBlob']);
+        return \base64_encode($encryptedDataKey['CiphertextBlob']);
     }
     /**
      * Takes an encrypted content encryption key (CEK) and material description

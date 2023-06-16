@@ -7,7 +7,7 @@ use S3IO\Aws3\Aws\MonitoringEventsInterface;
 /**
  * Represents an error interacting with configuration for client-side monitoring.
  */
-class ConfigurationException extends \RuntimeException implements \S3IO\Aws3\Aws\MonitoringEventsInterface
+class ConfigurationException extends \RuntimeException implements MonitoringEventsInterface
 {
     use HasMonitoringEventsTrait;
 }

@@ -70,10 +70,10 @@ class Amazon_Web_Services {
 		if ( $this->is_any_access_key_constant_defined() ) {
 			$constant = $this->access_key_id_constant();
 
-			return $constant ? constant( $constant ) : '';
+			return $constant ? \constant( $constant ) : '';
 		}
 
-		return get_option( 's3io_aws_access_key_id' );
+		return \get_option( 's3io_aws_access_key_id' );
 	}
 
 	/**
@@ -87,10 +87,10 @@ class Amazon_Web_Services {
 		if ( $this->is_any_access_key_constant_defined() ) {
 			$constant = $this->secret_access_key_constant();
 
-			return $constant ? constant( $constant ) : '';
+			return $constant ? \constant( $constant ) : '';
 		}
 
-		return get_option( 's3io_aws_secret_access_key' );
+		return \get_option( 's3io_aws_secret_access_key' );
 	}
 
 	/**
@@ -112,7 +112,7 @@ class Amazon_Web_Services {
 	public function use_ec2_iam_roles() {
 		$constant = $this->use_ec2_iam_role_constant();
 
-		return $constant && constant( $constant );
+		return $constant && \constant( $constant );
 	}
 
 	/**
@@ -169,7 +169,7 @@ class Amazon_Web_Services {
 	 */
 	function get_client() {
 		if ( $this->needs_access_keys() ) {
-			throw new Exception( __( 'You must first set your AWS access keys to use S3 Image Optimizer.', 's3-image-optimizer' ) );
+			throw new \Exception( __( 'You must first set your AWS access keys to use S3 Image Optimizer.', 's3-image-optimizer' ) );
 		}
 
 		if ( is_null( $this->client ) ) {
@@ -182,7 +182,7 @@ class Amazon_Web_Services {
 				);
 			}
 
-			$args             = apply_filters( 'aws_get_client_args', $args );
+			$args             = \apply_filters( 'aws_get_client_args', $args );
 			$this->aws_client = new Sdk( $args );
 
 			if ( empty( $args['region'] ) || $this->default_region === $args['region'] ) {
@@ -204,7 +204,7 @@ class Amazon_Web_Services {
 	 */
 	public static function get_first_defined_constant( $constants ) {
 		foreach ( (array) $constants as $constant ) {
-			if ( defined( $constant ) ) {
+			if ( \defined( $constant ) ) {
 				return $constant;
 			}
 		}

@@ -7,7 +7,7 @@ use S3IO\Aws3\Aws\MonitoringEventsInterface;
 /**
  * Represents an error interacting with configuration for S3's UseArnRegion
  */
-class ConfigurationException extends \RuntimeException implements \S3IO\Aws3\Aws\MonitoringEventsInterface
+class ConfigurationException extends \RuntimeException implements MonitoringEventsInterface
 {
     use HasMonitoringEventsTrait;
 }

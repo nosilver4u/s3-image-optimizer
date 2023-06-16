@@ -48,7 +48,7 @@ interface AwsClientInterface
      * @return ResultInterface
      * @throws \Exception
      */
-    public function execute(\S3IO\Aws3\Aws\CommandInterface $command);
+    public function execute(CommandInterface $command);
     /**
      * Execute a command asynchronously.
      *
@@ -56,7 +56,7 @@ interface AwsClientInterface
      *
      * @return \GuzzleHttp\Promise\PromiseInterface
      */
-    public function executeAsync(\S3IO\Aws3\Aws\CommandInterface $command);
+    public function executeAsync(CommandInterface $command);
     /**
      * Returns a promise that is fulfilled with an
      * {@see \Aws\Credentials\CredentialsInterface} object.

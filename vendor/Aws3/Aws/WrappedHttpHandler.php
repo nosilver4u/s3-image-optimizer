@@ -3,6 +3,7 @@
 namespace S3IO\Aws3\Aws;
 
 use S3IO\Aws3\Aws\Api\Parser\Exception\ParserException;
+use S3IO\Aws3\Aws\Exception\AwsException;
 use S3IO\Aws3\GuzzleHttp\Promise;
 use S3IO\Aws3\Psr\Http\Message\RequestInterface;
 use S3IO\Aws3\Psr\Http\Message\ResponseInterface;
@@ -42,7 +43,7 @@ class WrappedHttpHandler
      * @param bool     $collectStats   Whether to collect HTTP transfer
      *                                 information.
      */
-    public function __construct(callable $httpHandler, callable $parser, callable $errorParser, $exceptionClass = 'S3IO\\Aws3\\Aws\\Exception\\AwsException', $collectStats = false)
+    public function __construct(callable $httpHandler, callable $parser, callable $errorParser, $exceptionClass = AwsException::class, $collectStats = \false)
     {
         $this->httpHandler = $httpHandler;
         $this->parser = $parser;
@@ -59,7 +60,7 @@ class WrappedHttpHandler
      *
      * @return Promise\PromiseInterface
      */
-    public function __invoke(\S3IO\Aws3\Aws\CommandInterface $command, \S3IO\Aws3\Psr\Http\Message\RequestInterface $request)
+    public function __invoke(CommandInterface $command, RequestInterface $request)
     {
         $fn = $this->httpHandler;
         $options = $command['@http'] ?: [];
@@ -71,13 +72,13 @@ class WrappedHttpHandler
         } elseif (isset($options['http_stats_receiver'])) {
             throw new \InvalidArgumentException('Providing a custom HTTP stats' . ' receiver to Aws\\WrappedHttpHandler is not supported.');
         }
-        return \S3IO\Aws3\GuzzleHttp\Promise\promise_for($fn($request, $options))->then(function (\S3IO\Aws3\Psr\Http\Message\ResponseInterface $res) use($command, $request, &$stats) {
+        return Promise\Create::promiseFor($fn($request, $options))->then(function (ResponseInterface $res) use($command, $request, &$stats) {
             return $this->parseResponse($command, $request, $res, $stats);
         }, function ($err) use($request, $command, &$stats) {
-            if (is_array($err)) {
+            if (\is_array($err)) {
                 $err = $this->parseError($err, $request, $command, $stats);
             }
-            return new \S3IO\Aws3\GuzzleHttp\Promise\RejectedPromise($err);
+            return new Promise\RejectedPromise($err);
         });
     }
     /**
@@ -88,18 +89,18 @@ class WrappedHttpHandler
      *
      * @return ResultInterface
      */
-    private function parseResponse(\S3IO\Aws3\Aws\CommandInterface $command, \S3IO\Aws3\Psr\Http\Message\RequestInterface $request, \S3IO\Aws3\Psr\Http\Message\ResponseInterface $response, array $stats)
+    private function parseResponse(CommandInterface $command, RequestInterface $request, ResponseInterface $response, array $stats)
     {
         $parser = $this->parser;
         $status = $response->getStatusCode();
-        $result = $status < 300 ? $parser($command, $response) : new \S3IO\Aws3\Aws\Result();
+        $result = $status < 300 ? $parser($command, $response) : new Result();
         $metadata = ['statusCode' => $status, 'effectiveUri' => (string) $request->getUri(), 'headers' => [], 'transferStats' => []];
         if (!empty($stats)) {
             $metadata['transferStats']['http'] = [$stats];
         }
         // Bring headers into the metadata array.
         foreach ($response->getHeaders() as $name => $values) {
-            $metadata['headers'][strtolower($name)] = $values[0];
+            $metadata['headers'][\strtolower($name)] = $values[0];
         }
         $result['@metadata'] = $metadata;
         return $result;
@@ -114,7 +115,7 @@ class WrappedHttpHandler
      *
      * @return \Exception
      */
-    private function parseError(array $err, \S3IO\Aws3\Psr\Http\Message\RequestInterface $request, \S3IO\Aws3\Aws\CommandInterface $command, array $stats)
+    private function parseError(array $err, RequestInterface $request, CommandInterface $command, array $stats)
     {
         if (!isset($err['exception'])) {
             throw new \RuntimeException('The HTTP handler was rejected without an "exception" key value pair.');
@@ -124,7 +125,7 @@ class WrappedHttpHandler
             $parts = ['response' => null];
         } else {
             try {
-                $parts = call_user_func($this->errorParser, $err['response'], $command);
+                $parts = \call_user_func($this->errorParser, $err['response'], $command);
                 $serviceError .= " {$parts['code']} ({$parts['type']}): " . "{$parts['message']} - " . $err['response']->getBody();
             } catch (ParserException $e) {
                 $parts = [];
@@ -136,6 +137,6 @@ class WrappedHttpHandler
         $parts['request'] = $request;
         $parts['connection_error'] = !empty($err['connection_error']);
         $parts['transfer_stats'] = $stats;
-        return new $this->exceptionClass(sprintf('Error executing "%s" on "%s"; %s', $command->getName(), $request->getUri(), $serviceError), $command, $parts, $err['exception']);
+        return new $this->exceptionClass(\sprintf('Error executing "%s" on "%s"; %s', $command->getName(), $request->getUri(), $serviceError), $command, $parts, $err['exception']);
     }
 }

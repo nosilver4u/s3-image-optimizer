@@ -30,12 +30,16 @@ use S3IO\Aws3\GuzzleHttp\Promise;
  * @method \GuzzleHttp\Promise\Promise deleteBucketCorsAsync(array $args = [])
  * @method \Aws\Result deleteBucketEncryption(array $args = [])
  * @method \GuzzleHttp\Promise\Promise deleteBucketEncryptionAsync(array $args = [])
+ * @method \Aws\Result deleteBucketIntelligentTieringConfiguration(array $args = [])
+ * @method \GuzzleHttp\Promise\Promise deleteBucketIntelligentTieringConfigurationAsync(array $args = [])
  * @method \Aws\Result deleteBucketInventoryConfiguration(array $args = [])
  * @method \GuzzleHttp\Promise\Promise deleteBucketInventoryConfigurationAsync(array $args = [])
  * @method \Aws\Result deleteBucketLifecycle(array $args = [])
  * @method \GuzzleHttp\Promise\Promise deleteBucketLifecycleAsync(array $args = [])
  * @method \Aws\Result deleteBucketMetricsConfiguration(array $args = [])
  * @method \GuzzleHttp\Promise\Promise deleteBucketMetricsConfigurationAsync(array $args = [])
+ * @method \Aws\Result deleteBucketOwnershipControls(array $args = [])
+ * @method \GuzzleHttp\Promise\Promise deleteBucketOwnershipControlsAsync(array $args = [])
  * @method \Aws\Result deleteBucketPolicy(array $args = [])
  * @method \GuzzleHttp\Promise\Promise deleteBucketPolicyAsync(array $args = [])
  * @method \Aws\Result deleteBucketReplication(array $args = [])
@@ -62,6 +66,8 @@ use S3IO\Aws3\GuzzleHttp\Promise;
  * @method \GuzzleHttp\Promise\Promise getBucketCorsAsync(array $args = [])
  * @method \Aws\Result getBucketEncryption(array $args = [])
  * @method \GuzzleHttp\Promise\Promise getBucketEncryptionAsync(array $args = [])
+ * @method \Aws\Result getBucketIntelligentTieringConfiguration(array $args = [])
+ * @method \GuzzleHttp\Promise\Promise getBucketIntelligentTieringConfigurationAsync(array $args = [])
  * @method \Aws\Result getBucketInventoryConfiguration(array $args = [])
  * @method \GuzzleHttp\Promise\Promise getBucketInventoryConfigurationAsync(array $args = [])
  * @method \Aws\Result getBucketLifecycle(array $args = [])
@@ -78,6 +84,8 @@ use S3IO\Aws3\GuzzleHttp\Promise;
  * @method \GuzzleHttp\Promise\Promise getBucketNotificationAsync(array $args = [])
  * @method \Aws\Result getBucketNotificationConfiguration(array $args = [])
  * @method \GuzzleHttp\Promise\Promise getBucketNotificationConfigurationAsync(array $args = [])
+ * @method \Aws\Result getBucketOwnershipControls(array $args = [])
+ * @method \GuzzleHttp\Promise\Promise getBucketOwnershipControlsAsync(array $args = [])
  * @method \Aws\Result getBucketPolicy(array $args = [])
  * @method \GuzzleHttp\Promise\Promise getBucketPolicyAsync(array $args = [])
  * @method \Aws\Result getBucketPolicyStatus(array $args = [])
@@ -96,6 +104,8 @@ use S3IO\Aws3\GuzzleHttp\Promise;
  * @method \GuzzleHttp\Promise\Promise getObjectAsync(array $args = [])
  * @method \Aws\Result getObjectAcl(array $args = [])
  * @method \GuzzleHttp\Promise\Promise getObjectAclAsync(array $args = [])
+ * @method \Aws\Result getObjectAttributes(array $args = [])
+ * @method \GuzzleHttp\Promise\Promise getObjectAttributesAsync(array $args = [])
  * @method \Aws\Result getObjectLegalHold(array $args = [])
  * @method \GuzzleHttp\Promise\Promise getObjectLegalHoldAsync(array $args = [])
  * @method \Aws\Result getObjectLockConfiguration(array $args = [])
@@ -114,6 +124,8 @@ use S3IO\Aws3\GuzzleHttp\Promise;
  * @method \GuzzleHttp\Promise\Promise headObjectAsync(array $args = [])
  * @method \Aws\Result listBucketAnalyticsConfigurations(array $args = [])
  * @method \GuzzleHttp\Promise\Promise listBucketAnalyticsConfigurationsAsync(array $args = [])
+ * @method \Aws\Result listBucketIntelligentTieringConfigurations(array $args = [])
+ * @method \GuzzleHttp\Promise\Promise listBucketIntelligentTieringConfigurationsAsync(array $args = [])
  * @method \Aws\Result listBucketInventoryConfigurations(array $args = [])
  * @method \GuzzleHttp\Promise\Promise listBucketInventoryConfigurationsAsync(array $args = [])
  * @method \Aws\Result listBucketMetricsConfigurations(array $args = [])
@@ -140,6 +152,8 @@ use S3IO\Aws3\GuzzleHttp\Promise;
  * @method \GuzzleHttp\Promise\Promise putBucketCorsAsync(array $args = [])
  * @method \Aws\Result putBucketEncryption(array $args = [])
  * @method \GuzzleHttp\Promise\Promise putBucketEncryptionAsync(array $args = [])
+ * @method \Aws\Result putBucketIntelligentTieringConfiguration(array $args = [])
+ * @method \GuzzleHttp\Promise\Promise putBucketIntelligentTieringConfigurationAsync(array $args = [])
  * @method \Aws\Result putBucketInventoryConfiguration(array $args = [])
  * @method \GuzzleHttp\Promise\Promise putBucketInventoryConfigurationAsync(array $args = [])
  * @method \Aws\Result putBucketLifecycle(array $args = [])
@@ -154,6 +168,8 @@ use S3IO\Aws3\GuzzleHttp\Promise;
  * @method \GuzzleHttp\Promise\Promise putBucketNotificationAsync(array $args = [])
  * @method \Aws\Result putBucketNotificationConfiguration(array $args = [])
  * @method \GuzzleHttp\Promise\Promise putBucketNotificationConfigurationAsync(array $args = [])
+ * @method \Aws\Result putBucketOwnershipControls(array $args = [])
+ * @method \GuzzleHttp\Promise\Promise putBucketOwnershipControlsAsync(array $args = [])
  * @method \Aws\Result putBucketPolicy(array $args = [])
  * @method \GuzzleHttp\Promise\Promise putBucketPolicyAsync(array $args = [])
  * @method \Aws\Result putBucketReplication(array $args = [])
@@ -188,8 +204,10 @@ use S3IO\Aws3\GuzzleHttp\Promise;
  * @method \GuzzleHttp\Promise\Promise uploadPartAsync(array $args = [])
  * @method \Aws\Result uploadPartCopy(array $args = [])
  * @method \GuzzleHttp\Promise\Promise uploadPartCopyAsync(array $args = [])
+ * @method \Aws\Result writeGetObjectResponse(array $args = [])
+ * @method \GuzzleHttp\Promise\Promise writeGetObjectResponseAsync(array $args = [])
  */
-class S3MultiRegionClient extends \S3IO\Aws3\Aws\MultiRegionClient implements \S3IO\Aws3\Aws\S3\S3ClientInterface
+class S3MultiRegionClient extends BaseClient implements S3ClientInterface
 {
     use S3ClientTrait;
     /** @var CacheInterface */
@@ -198,12 +216,12 @@ class S3MultiRegionClient extends \S3IO\Aws3\Aws\MultiRegionClient implements \S
     {
         $args = parent::getArguments();
         $regionDef = $args['region'] + ['default' => function (array &$args) {
-            $availableRegions = array_keys($args['partition']['regions']);
-            return end($availableRegions);
+            $availableRegions = \array_keys($args['partition']['regions']);
+            return \end($availableRegions);
         }];
         unset($args['region']);
-        return $args + ['bucket_region_cache' => ['type' => 'config', 'valid' => [\S3IO\Aws3\Aws\CacheInterface::class], 'doc' => 'Cache of regions in which given buckets are located.', 'default' => function () {
-            return new \S3IO\Aws3\Aws\LruArrayCache();
+        return $args + ['bucket_region_cache' => ['type' => 'config', 'valid' => [CacheInterface::class], 'doc' => 'Cache of regions in which given buckets are located.', 'default' => function () {
+            return new LruArrayCache();
         }], 'region' => $regionDef];
     }
     public function __construct(array $args)
@@ -215,12 +233,12 @@ class S3MultiRegionClient extends \S3IO\Aws3\Aws\MultiRegionClient implements \S
     private function determineRegionMiddleware()
     {
         return function (callable $handler) {
-            return function (\S3IO\Aws3\Aws\CommandInterface $command) use($handler) {
+            return function (CommandInterface $command) use($handler) {
                 $cacheKey = $this->getCacheKey($command['Bucket']);
                 if (empty($command['@region']) && ($region = $this->cache->get($cacheKey))) {
                     $command['@region'] = $region;
                 }
-                return \S3IO\Aws3\GuzzleHttp\Promise\coroutine(function () use($handler, $command, $cacheKey) {
+                return Promise\Coroutine::of(function () use($handler, $command, $cacheKey) {
                     try {
                         (yield $handler($command));
                     } catch (PermanentRedirectException $e) {
@@ -255,7 +273,7 @@ class S3MultiRegionClient extends \S3IO\Aws3\Aws\MultiRegionClient implements \S
             };
         };
     }
-    public function createPresignedRequest(\S3IO\Aws3\Aws\CommandInterface $command, $expires, array $options = [])
+    public function createPresignedRequest(CommandInterface $command, $expires, array $options = [])
     {
         if (empty($command['Bucket'])) {
             throw new \InvalidArgumentException('The S3\\MultiRegionClient' . ' cannot create presigned requests for commands without a' . ' specified bucket.');
@@ -274,7 +292,7 @@ class S3MultiRegionClient extends \S3IO\Aws3\Aws\MultiRegionClient implements \S
     {
         $cacheKey = $this->getCacheKey($bucketName);
         if ($cached = $this->cache->get($cacheKey)) {
-            return \S3IO\Aws3\GuzzleHttp\Promise\promise_for($cached);
+            return Promise\Create::promiseFor($cached);
         }
         /** @var S3ClientInterface $regionalClient */
         $regionalClient = $this->getClientFromPool();

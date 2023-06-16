@@ -60,6 +60,10 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 
 == Changelog ==
 
+= 2.5.0 =
+* added: compatibility with EWWW Image Optimizer 7+ and better future-proofing to detect compatibility errors
+* updated: AWS SDK to latest version
+
 = 2.4.3 =
 * changed: display the values of any constants defined for endpoint, region, or folder restriction
 * fixed: check if the bucket list is an array before sanitizing

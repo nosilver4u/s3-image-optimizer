@@ -2,6 +2,7 @@
 
 namespace S3IO\Aws3\Aws\Exception;
 
+use S3IO\Aws3\Aws\Api\Shape;
 use S3IO\Aws3\Aws\CommandInterface;
 use S3IO\Aws3\Aws\HasDataTrait;
 use S3IO\Aws3\Aws\HasMonitoringEventsTrait;
@@ -14,7 +15,7 @@ use S3IO\Aws3\Psr\Http\Message\RequestInterface;
 /**
  * Represents an AWS exception that is thrown when a command fails.
  */
-class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\MonitoringEventsInterface, \S3IO\Aws3\Aws\ResponseContainerInterface, \ArrayAccess
+class AwsException extends \RuntimeException implements MonitoringEventsInterface, ResponseContainerInterface, \ArrayAccess
 {
     use HasDataTrait;
     use HasMonitoringEventsTrait;
@@ -26,6 +27,7 @@ class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\Monitorin
     private $requestId;
     private $errorType;
     private $errorCode;
+    private $errorShape;
     private $connectionError;
     private $transferInfo;
     private $errorMessage;
@@ -36,7 +38,7 @@ class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\Monitorin
      * @param array            $context Exception context
      * @param \Exception       $previous  Previous exception (if any)
      */
-    public function __construct($message, \S3IO\Aws3\Aws\CommandInterface $command, array $context = [], \Exception $previous = null)
+    public function __construct($message, CommandInterface $command, array $context = [], \Exception $previous = null)
     {
         $this->data = isset($context['body']) ? $context['body'] : [];
         $this->command = $command;
@@ -45,12 +47,13 @@ class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\Monitorin
         $this->requestId = isset($context['request_id']) ? $context['request_id'] : null;
         $this->errorType = isset($context['type']) ? $context['type'] : null;
         $this->errorCode = isset($context['code']) ? $context['code'] : null;
+        $this->errorShape = isset($context['error_shape']) ? $context['error_shape'] : null;
         $this->connectionError = !empty($context['connection_error']);
         $this->result = isset($context['result']) ? $context['result'] : null;
         $this->transferInfo = isset($context['transfer_stats']) ? $context['transfer_stats'] : [];
         $this->errorMessage = isset($context['message']) ? $context['message'] : null;
         $this->monitoringEvents = [];
-        $this->maxRetriesExceeded = false;
+        $this->maxRetriesExceeded = \false;
         parent::__construct($message, 0, $previous);
     }
     public function __toString()
@@ -64,7 +67,7 @@ class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\Monitorin
         // might not even get shown, causing developers to attempt to catch
         // the inner exception instead of the actual exception because they
         // can't see the outer exception's __toString output.
-        return sprintf("exception '%s' with message '%s'\n\n%s", get_class($this), $this->getMessage(), parent::__toString());
+        return \sprintf("exception '%s' with message '%s'\n\n%s", \get_class($this), $this->getMessage(), parent::__toString());
     }
     /**
      * Get the command that was executed.
@@ -159,6 +162,15 @@ class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\Monitorin
         return $this->errorCode;
     }
     /**
+     * Get the AWS error shape.
+     *
+     * @return Shape|null Returns null if no response was received
+     */
+    public function getAwsErrorShape()
+    {
+        return $this->errorShape;
+    }
+    /**
      * Get all transfer information as an associative array if no $name
      * argument is supplied, or gets a specific transfer statistic if
      * a $name attribute is supplied (e.g., 'retries_attempted').
@@ -197,7 +209,7 @@ class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\Monitorin
      */
     public function setMaxRetriesExceeded()
     {
-        $this->maxRetriesExceeded = true;
+        $this->maxRetriesExceeded = \true;
     }
     public function hasKey($name)
     {
@@ -209,6 +221,6 @@ class AwsException extends \RuntimeException implements \S3IO\Aws3\Aws\Monitorin
     }
     public function search($expression)
     {
-        return \S3IO\Aws3\JmesPath\Env::search($expression, $this->toArray());
+        return JmesPath::search($expression, $this->toArray());
     }
 }

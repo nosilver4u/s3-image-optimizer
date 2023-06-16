@@ -4,6 +4,8 @@ namespace S3IO\Aws3\Aws\Api\Serializer;
 
 use S3IO\Aws3\Aws\Api\Service;
 use S3IO\Aws3\Aws\CommandInterface;
+use S3IO\Aws3\Aws\EndpointV2\EndpointProviderV2;
+use S3IO\Aws3\Aws\EndpointV2\EndpointV2SerializerTrait;
 use S3IO\Aws3\GuzzleHttp\Psr7\Request;
 use S3IO\Aws3\Psr\Http\Message\RequestInterface;
 /**
@@ -12,33 +14,40 @@ use S3IO\Aws3\Psr\Http\Message\RequestInterface;
  */
 class QuerySerializer
 {
+    use EndpointV2SerializerTrait;
     private $endpoint;
     private $api;
     private $paramBuilder;
-    public function __construct(\S3IO\Aws3\Aws\Api\Service $api, $endpoint, callable $paramBuilder = null)
+    public function __construct(Service $api, $endpoint, callable $paramBuilder = null)
     {
         $this->api = $api;
         $this->endpoint = $endpoint;
-        $this->paramBuilder = $paramBuilder ?: new \S3IO\Aws3\Aws\Api\Serializer\QueryParamBuilder();
+        $this->paramBuilder = $paramBuilder ?: new QueryParamBuilder();
     }
     /**
      * When invoked with an AWS command, returns a serialization array
      * containing "method", "uri", "headers", and "body" key value pairs.
      *
-     * @param CommandInterface $command
+     * @param CommandInterface $command Command to serialize into a request.
+     * @param $endpointProvider Provider used for dynamic endpoint resolution.
+     * @param $clientArgs Client arguments used for dynamic endpoint resolution.
      *
      * @return RequestInterface
      */
-    public function __invoke(\S3IO\Aws3\Aws\CommandInterface $command)
+    public function __invoke(CommandInterface $command, $endpointProvider = null, $clientArgs = null)
     {
         $operation = $this->api->getOperation($command->getName());
         $body = ['Action' => $command->getName(), 'Version' => $this->api->getMetadata('apiVersion')];
-        $params = $command->toArray();
+        $commandArgs = $command->toArray();
         // Only build up the parameters when there are parameters to build
-        if ($params) {
-            $body += call_user_func($this->paramBuilder, $operation->getInput(), $params);
+        if ($commandArgs) {
+            $body += \call_user_func($this->paramBuilder, $operation->getInput(), $commandArgs);
         }
-        $body = http_build_query($body, null, '&', PHP_QUERY_RFC3986);
-        return new \S3IO\Aws3\GuzzleHttp\Psr7\Request('POST', $this->endpoint, ['Content-Length' => strlen($body), 'Content-Type' => 'application/x-www-form-urlencoded'], $body);
+        $body = \http_build_query($body, '', '&', \PHP_QUERY_RFC3986);
+        $headers = ['Content-Length' => \strlen($body), 'Content-Type' => 'application/x-www-form-urlencoded'];
+        if ($endpointProvider instanceof EndpointProviderV2) {
+            $this->setRequestOptions($endpointProvider, $command, $operation, $commandArgs, $clientArgs, $headers);
+        }
+        return new Request('POST', $this->endpoint, $headers, $body);
     }
 }

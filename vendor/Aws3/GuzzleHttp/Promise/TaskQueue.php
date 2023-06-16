@@ -9,20 +9,20 @@ namespace S3IO\Aws3\GuzzleHttp\Promise;
  * maintains a constant stack size. You can use the task queue asynchronously
  * by calling the `run()` function of the global task queue in an event loop.
  *
- *     GuzzleHttp\Promise\queue()->run();
+ *     GuzzleHttp\Promise\Utils::queue()->run();
  */
-class TaskQueue implements \S3IO\Aws3\GuzzleHttp\Promise\TaskQueueInterface
+class TaskQueue implements TaskQueueInterface
 {
-    private $enableShutdown = true;
+    private $enableShutdown = \true;
     private $queue = [];
-    public function __construct($withShutdown = true)
+    public function __construct($withShutdown = \true)
     {
         if ($withShutdown) {
-            register_shutdown_function(function () {
+            \register_shutdown_function(function () {
                 if ($this->enableShutdown) {
                     // Only run the tasks if an E_ERROR didn't occur.
-                    $err = error_get_last();
-                    if (!$err || $err['type'] ^ E_ERROR) {
+                    $err = \error_get_last();
+                    if (!$err || $err['type'] ^ \E_ERROR) {
                         $this->run();
                     }
                 }
@@ -39,8 +39,8 @@ class TaskQueue implements \S3IO\Aws3\GuzzleHttp\Promise\TaskQueueInterface
     }
     public function run()
     {
-        /** @var callable $task */
-        while ($task = array_shift($this->queue)) {
+        while ($task = \array_shift($this->queue)) {
+            /** @var callable $task */
             $task();
         }
     }
@@ -57,6 +57,6 @@ class TaskQueue implements \S3IO\Aws3\GuzzleHttp\Promise\TaskQueueInterface
      */
     public function disableShutdown()
     {
-        $this->enableShutdown = false;
+        $this->enableShutdown = \false;
     }
 }

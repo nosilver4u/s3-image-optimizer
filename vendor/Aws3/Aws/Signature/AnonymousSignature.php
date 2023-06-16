@@ -7,13 +7,19 @@ use S3IO\Aws3\Psr\Http\Message\RequestInterface;
 /**
  * Provides anonymous client access (does not sign requests).
  */
-class AnonymousSignature implements \S3IO\Aws3\Aws\Signature\SignatureInterface
+class AnonymousSignature implements SignatureInterface
 {
-    public function signRequest(\S3IO\Aws3\Psr\Http\Message\RequestInterface $request, \S3IO\Aws3\Aws\Credentials\CredentialsInterface $credentials)
+    /**
+     * /** {@inheritdoc}
+     */
+    public function signRequest(RequestInterface $request, CredentialsInterface $credentials)
     {
         return $request;
     }
-    public function presign(\S3IO\Aws3\Psr\Http\Message\RequestInterface $request, \S3IO\Aws3\Aws\Credentials\CredentialsInterface $credentials, $expires, array $options = [])
+    /**
+     * /** {@inheritdoc}
+     */
+    public function presign(RequestInterface $request, CredentialsInterface $credentials, $expires, array $options = [])
     {
         return $request;
     }

@@ -10,8 +10,10 @@ use S3IO\Aws3\Psr\Http\Message\StreamInterface;
  * This stream returns a "hwm" metadata value that tells upstream consumers
  * what the configured high water mark of the stream is, or the maximum
  * preferred size of the buffer.
+ *
+ * @final
  */
-class BufferStream implements \S3IO\Aws3\Psr\Http\Message\StreamInterface
+class BufferStream implements StreamInterface
 {
     private $hwm;
     private $buffer = '';
@@ -43,34 +45,35 @@ class BufferStream implements \S3IO\Aws3\Psr\Http\Message\StreamInterface
     public function detach()
     {
         $this->close();
+        return null;
     }
     public function getSize()
     {
-        return strlen($this->buffer);
+        return \strlen($this->buffer);
     }
     public function isReadable()
     {
-        return true;
+        return \true;
     }
     public function isWritable()
     {
-        return true;
+        return \true;
     }
     public function isSeekable()
     {
-        return false;
+        return \false;
     }
     public function rewind()
     {
         $this->seek(0);
     }
-    public function seek($offset, $whence = SEEK_SET)
+    public function seek($offset, $whence = \SEEK_SET)
     {
         throw new \RuntimeException('Cannot seek a BufferStream');
     }
     public function eof()
     {
-        return strlen($this->buffer) === 0;
+        return \strlen($this->buffer) === 0;
     }
     public function tell()
     {
@@ -81,15 +84,15 @@ class BufferStream implements \S3IO\Aws3\Psr\Http\Message\StreamInterface
      */
     public function read($length)
     {
-        $currentLength = strlen($this->buffer);
+        $currentLength = \strlen($this->buffer);
         if ($length >= $currentLength) {
             // No need to slice the buffer because we don't have enough data.
             $result = $this->buffer;
             $this->buffer = '';
         } else {
             // Slice up the result to provide a subset of the buffer.
-            $result = substr($this->buffer, 0, $length);
-            $this->buffer = substr($this->buffer, $length);
+            $result = \substr($this->buffer, 0, $length);
+            $this->buffer = \substr($this->buffer, $length);
         }
         return $result;
     }
@@ -100,10 +103,10 @@ class BufferStream implements \S3IO\Aws3\Psr\Http\Message\StreamInterface
     {
         $this->buffer .= $string;
         // TODO: What should happen here?
-        if (strlen($this->buffer) >= $this->hwm) {
-            return false;
+        if (\strlen($this->buffer) >= $this->hwm) {
+            return \false;
         }
-        return strlen($string);
+        return \strlen($string);
     }
     public function getMetadata($key = null)
     {

@@ -5,6 +5,7 @@ namespace S3IO\Aws3\Aws\Api\Serializer;
 use S3IO\Aws3\Aws\Api\Service;
 use S3IO\Aws3\Aws\Api\Shape;
 use S3IO\Aws3\Aws\Api\TimestampShape;
+use S3IO\Aws3\Aws\Exception\InvalidJsonException;
 /**
  * Formats the JSON body of a JSON-REST or JSON-RPC operation.
  * @internal
@@ -12,7 +13,7 @@ use S3IO\Aws3\Aws\Api\TimestampShape;
 class JsonBody
 {
     private $api;
-    public function __construct(\S3IO\Aws3\Aws\Api\Service $api)
+    public function __construct(Service $api)
     {
         $this->api = $api;
     }
@@ -23,9 +24,17 @@ class JsonBody
      *
      * @return string
      */
-    public static function getContentType(\S3IO\Aws3\Aws\Api\Service $service)
+    public static function getContentType(Service $service)
     {
-        return 'application/x-amz-json-' . number_format($service->getMetadata('jsonVersion'), 1);
+        if ($service->getMetadata('protocol') === 'rest-json') {
+            return 'application/json';
+        }
+        $jsonVersion = $service->getMetadata('jsonVersion');
+        if (empty($jsonVersion)) {
+            throw new \InvalidArgumentException('invalid json');
+        } else {
+            return 'application/x-amz-json-' . @\number_format($service->getMetadata('jsonVersion'), 1);
+        }
     }
     /**
      * Builds the JSON body based on an array of arguments.
@@ -35,16 +44,19 @@ class JsonBody
      *
      * @return string
      */
-    public function build(\S3IO\Aws3\Aws\Api\Shape $shape, array $args)
+    public function build(Shape $shape, array $args)
     {
-        $result = json_encode($this->format($shape, $args));
+        $result = \json_encode($this->format($shape, $args));
         return $result == '[]' ? '{}' : $result;
     }
-    private function format(\S3IO\Aws3\Aws\Api\Shape $shape, $value)
+    private function format(Shape $shape, $value)
     {
         switch ($shape['type']) {
             case 'structure':
                 $data = [];
+                if (isset($shape['document']) && $shape['document']) {
+                    return $value;
+                }
                 foreach ($value as $k => $v) {
                     if ($v !== null && $shape->hasMember($k)) {
                         $valueShape = $shape->getMember($k);
@@ -71,10 +83,10 @@ class JsonBody
                 }
                 return $value;
             case 'blob':
-                return base64_encode($value);
+                return \base64_encode($value);
             case 'timestamp':
                 $timestampFormat = !empty($shape['timestampFormat']) ? $shape['timestampFormat'] : 'unixTimestamp';
-                return \S3IO\Aws3\Aws\Api\TimestampShape::format($value, $timestampFormat);
+                return TimestampShape::format($value, $timestampFormat);
             default:
                 return $value;
         }

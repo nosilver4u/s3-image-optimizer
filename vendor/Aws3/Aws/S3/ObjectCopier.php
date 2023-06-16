@@ -7,15 +7,16 @@ use S3IO\Aws3\Aws\Arn\S3\AccessPointArn;
 use S3IO\Aws3\Aws\Exception\MultipartUploadException;
 use S3IO\Aws3\Aws\Result;
 use S3IO\Aws3\Aws\S3\Exception\S3Exception;
+use S3IO\Aws3\GuzzleHttp\Promise\Coroutine;
 use S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface;
 use InvalidArgumentException;
 /**
  * Copies objects from one S3 location to another, utilizing a multipart copy
  * when appropriate.
  */
-class ObjectCopier implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
+class ObjectCopier implements PromisorInterface
 {
-    const DEFAULT_MULTIPART_THRESHOLD = \S3IO\Aws3\Aws\S3\MultipartUploader::PART_MAX_SIZE;
+    const DEFAULT_MULTIPART_THRESHOLD = MultipartUploader::PART_MAX_SIZE;
     private $client;
     private $source;
     private $destination;
@@ -43,7 +44,7 @@ class ObjectCopier implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
      *
      * @throws InvalidArgumentException
      */
-    public function __construct(\S3IO\Aws3\Aws\S3\S3ClientInterface $client, array $source, array $destination, $acl = 'private', array $options = [])
+    public function __construct(S3ClientInterface $client, array $source, array $destination, $acl = 'private', array $options = [])
     {
         $this->validateLocation($source);
         $this->validateLocation($destination);
@@ -57,21 +58,23 @@ class ObjectCopier implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
      * Perform the configured copy asynchronously. Returns a promise that is
      * fulfilled with the result of the CompleteMultipartUpload or CopyObject
      * operation or rejected with an exception.
+     *
+     * @return Coroutine
      */
     public function promise()
     {
-        return \S3IO\Aws3\GuzzleHttp\Promise\coroutine(function () {
+        return Coroutine::of(function () {
             $headObjectCommand = $this->client->getCommand('HeadObject', $this->options['params'] + $this->source);
-            if (is_callable($this->options['before_lookup'])) {
+            if (\is_callable($this->options['before_lookup'])) {
                 $this->options['before_lookup']($headObjectCommand);
             }
             $objectStats = (yield $this->client->executeAsync($headObjectCommand));
             if ($objectStats['ContentLength'] > $this->options['mup_threshold']) {
-                $mup = new \S3IO\Aws3\Aws\S3\MultipartCopy($this->client, $this->getSourcePath(), ['source_metadata' => $objectStats, 'acl' => $this->acl] + $this->destination + $this->options);
+                $mup = new MultipartCopy($this->client, $this->getSourcePath(), ['source_metadata' => $objectStats, 'acl' => $this->acl] + $this->destination + $this->options);
                 (yield $mup->promise());
             } else {
                 $defaults = ['ACL' => $this->acl, 'MetadataDirective' => 'COPY', 'CopySource' => $this->getSourcePath()];
-                $params = array_diff_key($this->options, self::$defaults) + $this->destination + $defaults + $this->options['params'];
+                $params = \array_diff_key($this->options, self::$defaults) + $this->destination + $defaults + $this->options['params'];
                 (yield $this->client->executeAsync($this->client->getCommand('CopyObject', $params)));
             }
         });
@@ -97,14 +100,16 @@ class ObjectCopier implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
     }
     private function getSourcePath()
     {
-        if (\S3IO\Aws3\Aws\Arn\ArnParser::isArn($this->source['Bucket'])) {
+        $path = "/{$this->source['Bucket']}/";
+        if (ArnParser::isArn($this->source['Bucket'])) {
             try {
-                new \S3IO\Aws3\Aws\Arn\S3\AccessPointArn($this->source['Bucket']);
+                new AccessPointArn($this->source['Bucket']);
+                $path = "{$this->source['Bucket']}/object/";
             } catch (\Exception $e) {
                 throw new \InvalidArgumentException('Provided ARN was a not a valid S3 access point ARN (' . $e->getMessage() . ')', 0, $e);
             }
         }
-        $sourcePath = "/{$this->source['Bucket']}/" . rawurlencode($this->source['Key']);
+        $sourcePath = $path . \rawurlencode($this->source['Key']);
         if (isset($this->source['VersionId'])) {
             $sourcePath .= "?versionId={$this->source['VersionId']}";
         }

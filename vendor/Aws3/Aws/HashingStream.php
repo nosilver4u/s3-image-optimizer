@@ -7,9 +7,11 @@ use S3IO\Aws3\Psr\Http\Message\StreamInterface;
 /**
  * Stream decorator that calculates a rolling hash of the stream as it is read.
  */
-class HashingStream implements \S3IO\Aws3\Psr\Http\Message\StreamInterface
+class HashingStream implements StreamInterface
 {
     use StreamDecoratorTrait;
+    /** @var StreamInterface */
+    private $stream;
     /** @var HashInterface */
     private $hash;
     /** @var callable|null */
@@ -20,7 +22,7 @@ class HashingStream implements \S3IO\Aws3\Psr\Http\Message\StreamInterface
      * @param callable        $onComplete Optional function invoked when the
      *                                    hash calculation is completed.
      */
-    public function __construct(\S3IO\Aws3\Psr\Http\Message\StreamInterface $stream, \S3IO\Aws3\Aws\HashInterface $hash, callable $onComplete = null)
+    public function __construct(StreamInterface $stream, HashInterface $hash, callable $onComplete = null)
     {
         $this->stream = $stream;
         $this->hash = $hash;
@@ -33,18 +35,18 @@ class HashingStream implements \S3IO\Aws3\Psr\Http\Message\StreamInterface
         if ($this->eof()) {
             $result = $this->hash->complete();
             if ($this->callback) {
-                call_user_func($this->callback, $result);
+                \call_user_func($this->callback, $result);
             }
         }
         return $data;
     }
-    public function seek($offset, $whence = SEEK_SET)
+    public function seek($offset, $whence = \SEEK_SET)
     {
         if ($offset === 0) {
             $this->hash->reset();
             return $this->stream->seek($offset);
         }
         // Seeking arbitrarily is not supported.
-        return false;
+        return \false;
     }
 }

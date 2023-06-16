@@ -6,11 +6,16 @@ use S3IO\Aws3\Aws\Crypto\Cipher\CipherMethod;
 use S3IO\Aws3\Aws\Crypto\Cipher\Cbc;
 use S3IO\Aws3\GuzzleHttp\Psr7\Stream;
 /**
+ * Legacy abstract encryption client. New workflows should use
+ * AbstractCryptoClientV2.
+ *
+ * @deprecated
  * @internal
  */
 abstract class AbstractCryptoClient
 {
     public static $supportedCiphers = ['cbc', 'gcm'];
+    public static $supportedKeyWraps = [KmsMaterialsProvider::WRAP_ALGORITHM_NAME];
     /**
      * Returns if the passed cipher name is supported for encryption by the SDK.
      *
@@ -20,7 +25,7 @@ abstract class AbstractCryptoClient
      */
     public static function isSupportedCipher($cipherName)
     {
-        return in_array($cipherName, self::$supportedCiphers);
+        return \in_array($cipherName, self::$supportedCiphers);
     }
     /**
      * Returns an identifier recognizable by `openssl_*` functions, such as
@@ -76,15 +81,15 @@ abstract class AbstractCryptoClient
      *
      * @internal
      */
-    public abstract function encrypt(\S3IO\Aws3\GuzzleHttp\Psr7\Stream $plaintext, array $cipherOptions, \S3IO\Aws3\Aws\Crypto\MaterialsProvider $provider, \S3IO\Aws3\Aws\Crypto\MetadataEnvelope $envelope);
+    public abstract function encrypt(Stream $plaintext, array $cipherOptions, MaterialsProvider $provider, MetadataEnvelope $envelope);
     /**
      * Dependency to provide an interface for building a decryption stream for
      * cipher text given metadata and materials to do so.
      *
      * @param string $cipherText Plain-text data to be decrypted using the
      *                           materials, algorithm, and data provided.
-     * @param MaterialsProvider $provider A provider to supply and encrypt
-     *                                    materials used in encryption.
+     * @param MaterialsProviderInterface $provider A provider to supply and encrypt
+     *                                             materials used in encryption.
      * @param MetadataEnvelope $envelope A storage envelope for encryption
      *                                   metadata to be read from.
      * @param array $cipherOptions Additional verification options.
@@ -93,5 +98,5 @@ abstract class AbstractCryptoClient
      *
      * @internal
      */
-    public abstract function decrypt($cipherText, \S3IO\Aws3\Aws\Crypto\MaterialsProvider $provider, \S3IO\Aws3\Aws\Crypto\MetadataEnvelope $envelope, array $cipherOptions = []);
+    public abstract function decrypt($cipherText, MaterialsProviderInterface $provider, MetadataEnvelope $envelope, array $cipherOptions = []);
 }

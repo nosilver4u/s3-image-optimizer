@@ -5,10 +5,10 @@ namespace S3IO\Aws3\Aws\Api;
 /**
  * Represents a list shape.
  */
-class ListShape extends \S3IO\Aws3\Aws\Api\Shape
+class ListShape extends Shape
 {
     private $member;
-    public function __construct(array $definition, \S3IO\Aws3\Aws\Api\ShapeMap $shapeMap)
+    public function __construct(array $definition, ShapeMap $shapeMap)
     {
         $definition['type'] = 'list';
         parent::__construct($definition, $shapeMap);
@@ -23,7 +23,7 @@ class ListShape extends \S3IO\Aws3\Aws\Api\Shape
             if (!isset($this->definition['member'])) {
                 throw new \RuntimeException('No member attribute specified');
             }
-            $this->member = \S3IO\Aws3\Aws\Api\Shape::create($this->definition['member'], $this->shapeMap);
+            $this->member = Shape::create($this->definition['member'], $this->shapeMap);
         }
         return $this->member;
     }

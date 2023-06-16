@@ -15,7 +15,7 @@ interface ClientInterface
     /**
      * @deprecated Will be removed in Guzzle 7.0.0
      */
-    const VERSION = '6.5.1';
+    const VERSION = '6.5.5';
     /**
      * Send an HTTP request.
      *
@@ -26,7 +26,7 @@ interface ClientInterface
      * @return ResponseInterface
      * @throws GuzzleException
      */
-    public function send(\S3IO\Aws3\Psr\Http\Message\RequestInterface $request, array $options = []);
+    public function send(RequestInterface $request, array $options = []);
     /**
      * Asynchronously send an HTTP request.
      *
@@ -36,7 +36,7 @@ interface ClientInterface
      *
      * @return PromiseInterface
      */
-    public function sendAsync(\S3IO\Aws3\Psr\Http\Message\RequestInterface $request, array $options = []);
+    public function sendAsync(RequestInterface $request, array $options = []);
     /**
      * Create and send an HTTP request.
      *

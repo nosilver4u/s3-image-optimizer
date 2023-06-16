@@ -21,9 +21,9 @@ class S3MultipartUploadException extends \S3IO\Aws3\Aws\Exception\MultipartUploa
      *                                for a specific Multipart error being thrown in
      *                                the MultipartUpload process.
      */
-    public function __construct(\S3IO\Aws3\Aws\Multipart\UploadState $state, $prev = null)
+    public function __construct(UploadState $state, $prev = null)
     {
-        if (is_array($prev) && ($error = $prev[key($prev)])) {
+        if (\is_array($prev) && ($error = $prev[\key($prev)])) {
             $this->collectPathInfo($error->getCommand());
         } elseif ($prev instanceof AwsException) {
             $this->collectPathInfo($prev->getCommand());
@@ -65,7 +65,7 @@ class S3MultipartUploadException extends \S3IO\Aws3\Aws\Exception\MultipartUploa
      *
      * @param CommandInterface $cmd
      */
-    private function collectPathInfo(\S3IO\Aws3\Aws\CommandInterface $cmd)
+    private function collectPathInfo(CommandInterface $cmd)
     {
         if (empty($this->bucket) && isset($cmd['Bucket'])) {
             $this->bucket = $cmd['Bucket'];

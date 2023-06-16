@@ -5,6 +5,7 @@ namespace S3IO\Aws3\Aws\Api\Parser;
 use S3IO\Aws3\Aws\Api\DateTimeResult;
 use S3IO\Aws3\Aws\Api\ListShape;
 use S3IO\Aws3\Aws\Api\MapShape;
+use S3IO\Aws3\Aws\Api\Parser\Exception\ParserException;
 use S3IO\Aws3\Aws\Api\Shape;
 use S3IO\Aws3\Aws\Api\StructureShape;
 /**
@@ -12,7 +13,7 @@ use S3IO\Aws3\Aws\Api\StructureShape;
  */
 class XmlParser
 {
-    public function parse(\S3IO\Aws3\Aws\Api\StructureShape $shape, \SimpleXMLElement $value)
+    public function parse(StructureShape $shape, \SimpleXMLElement $value)
     {
         return $this->dispatch($shape, $value);
     }
@@ -25,7 +26,7 @@ class XmlParser
         }
         return (string) $value;
     }
-    private function parse_structure(\S3IO\Aws3\Aws\Api\StructureShape $shape, \SimpleXMLElement $value)
+    private function parse_structure(StructureShape $shape, \SimpleXMLElement $value)
     {
         $target = [];
         foreach ($shape->getMembers() as $name => $member) {
@@ -40,9 +41,15 @@ class XmlParser
                 }
             }
         }
+        if (isset($shape['union']) && $shape['union'] && empty($target)) {
+            foreach ($value as $key => $val) {
+                $name = $val->children()->getName();
+                $target['Unknown'][$name] = $val->{$name};
+            }
+        }
         return $target;
     }
-    private function memberKey(\S3IO\Aws3\Aws\Api\Shape $shape, $name)
+    private function memberKey(Shape $shape, $name)
     {
         if (null !== $shape['locationName']) {
             return $shape['locationName'];
@@ -52,7 +59,7 @@ class XmlParser
         }
         return $name;
     }
-    private function parse_list(\S3IO\Aws3\Aws\Api\ListShape $shape, \SimpleXMLElement $value)
+    private function parse_list(ListShape $shape, \SimpleXMLElement $value)
     {
         $target = [];
         $member = $shape->getMember();
@@ -64,7 +71,7 @@ class XmlParser
         }
         return $target;
     }
-    private function parse_map(\S3IO\Aws3\Aws\Api\MapShape $shape, \SimpleXMLElement $value)
+    private function parse_map(MapShape $shape, \SimpleXMLElement $value)
     {
         $target = [];
         if (!$shape['flattened']) {
@@ -81,37 +88,37 @@ class XmlParser
         }
         return $target;
     }
-    private function parse_blob(\S3IO\Aws3\Aws\Api\Shape $shape, $value)
+    private function parse_blob(Shape $shape, $value)
     {
-        return base64_decode((string) $value);
+        return \base64_decode((string) $value);
     }
-    private function parse_float(\S3IO\Aws3\Aws\Api\Shape $shape, $value)
+    private function parse_float(Shape $shape, $value)
     {
-        return (double) (string) $value;
+        return (float) (string) $value;
     }
-    private function parse_integer(\S3IO\Aws3\Aws\Api\Shape $shape, $value)
+    private function parse_integer(Shape $shape, $value)
     {
         return (int) (string) $value;
     }
-    private function parse_boolean(\S3IO\Aws3\Aws\Api\Shape $shape, $value)
+    private function parse_boolean(Shape $shape, $value)
     {
         return $value == 'true';
     }
-    private function parse_timestamp(\S3IO\Aws3\Aws\Api\Shape $shape, $value)
+    private function parse_timestamp(Shape $shape, $value)
     {
-        if (!empty($shape['timestampFormat']) && $shape['timestampFormat'] === 'unixTimestamp') {
-            return \S3IO\Aws3\Aws\Api\DateTimeResult::fromEpoch((string) $value);
+        if (\is_string($value) || \is_int($value) || \is_object($value) && \method_exists($value, '__toString')) {
+            return DateTimeResult::fromTimestamp((string) $value, !empty($shape['timestampFormat']) ? $shape['timestampFormat'] : null);
         }
-        return new \S3IO\Aws3\Aws\Api\DateTimeResult($value);
+        throw new ParserException('Invalid timestamp value passed to XmlParser::parse_timestamp');
     }
-    private function parse_xml_attribute(\S3IO\Aws3\Aws\Api\Shape $shape, \S3IO\Aws3\Aws\Api\Shape $memberShape, $value)
+    private function parse_xml_attribute(Shape $shape, Shape $memberShape, $value)
     {
         $namespace = $shape['xmlNamespace']['uri'] ? $shape['xmlNamespace']['uri'] : '';
         $prefix = $shape['xmlNamespace']['prefix'] ? $shape['xmlNamespace']['prefix'] : '';
         if (!empty($prefix)) {
             $prefix .= ':';
         }
-        $key = str_replace($prefix, '', $memberShape['locationName']);
+        $key = \str_replace($prefix, '', $memberShape['locationName']);
         $attributes = $value->attributes($namespace);
         return isset($attributes[$key]) ? (string) $attributes[$key] : null;
     }

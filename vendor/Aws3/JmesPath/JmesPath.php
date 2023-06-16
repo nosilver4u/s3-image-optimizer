@@ -8,11 +8,11 @@ namespace S3IO\Aws3\JmesPath;
  * @param string $expression Expression to search.
  * @param mixed $data Data to search.
  *
- * @return mixed|null
+ * @return mixed
  */
-if (!function_exists(__NAMESPACE__ . '\\search')) {
+if (!\function_exists(__NAMESPACE__ . '\\search')) {
     function search($expression, $data)
     {
-        return \S3IO\Aws3\JmesPath\Env::search($expression, $data);
+        return Env::search($expression, $data);
     }
 }

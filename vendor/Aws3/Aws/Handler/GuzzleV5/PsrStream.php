@@ -10,12 +10,12 @@ use S3IO\Aws3\Psr\Http\Message\StreamInterface as Psr7StreamInterface;
  *
  * @codeCoverageIgnore
  */
-class PsrStream implements \S3IO\Aws3\Psr\Http\Message\StreamInterface
+class PsrStream implements Psr7StreamInterface
 {
     use StreamDecoratorTrait;
     /** @var GuzzleStreamInterface */
     private $stream;
-    public function __construct(\S3IO\Aws3\GuzzleHttp\Stream\StreamInterface $stream)
+    public function __construct(GuzzleStreamInterface $stream)
     {
         $this->stream = $stream;
     }

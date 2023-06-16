@@ -3,11 +3,11 @@
 namespace S3IO\Aws3\Aws;
 
 use S3IO\Aws3\Psr\Cache\CacheItemPoolInterface;
-class PsrCacheAdapter implements \S3IO\Aws3\Aws\CacheInterface
+class PsrCacheAdapter implements CacheInterface
 {
     /** @var CacheItemPoolInterface */
     private $pool;
-    public function __construct(\S3IO\Aws3\Psr\Cache\CacheItemPoolInterface $pool)
+    public function __construct(CacheItemPoolInterface $pool)
     {
         $this->pool = $pool;
     }

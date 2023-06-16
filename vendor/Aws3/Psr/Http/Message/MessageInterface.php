@@ -173,5 +173,5 @@ interface MessageInterface
      * @return static
      * @throws \InvalidArgumentException When the body is not valid.
      */
-    public function withBody(\S3IO\Aws3\Psr\Http\Message\StreamInterface $body);
+    public function withBody(StreamInterface $body);
 }

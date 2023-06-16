@@ -3,11 +3,11 @@
 namespace S3IO\Aws3\Aws;
 
 use S3IO\Aws3\Psr\SimpleCache\CacheInterface as SimpleCacheInterface;
-class Psr16CacheAdapter implements \S3IO\Aws3\Aws\CacheInterface
+class Psr16CacheAdapter implements CacheInterface
 {
     /** @var SimpleCacheInterface */
     private $cache;
-    public function __construct(\S3IO\Aws3\Psr\SimpleCache\CacheInterface $cache)
+    public function __construct(SimpleCacheInterface $cache)
     {
         $this->cache = $cache;
     }

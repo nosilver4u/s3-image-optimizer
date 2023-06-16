@@ -9,7 +9,7 @@ use Throwable;
  * Creates a promise that is resolved using a generator that yields values or
  * promises (somewhat similar to C#'s async keyword).
  *
- * When called, the coroutine function will start an instance of the generator
+ * When called, the Coroutine::of method will start an instance of the generator
  * and returns a promise that is fulfilled with its final yielded value.
  *
  * Control is returned back to the generator when the yielded promise settles.
@@ -22,7 +22,7 @@ use Throwable;
  *         return new Promise\FulfilledPromise($value);
  *     }
  *
- *     $promise = Promise\coroutine(function () {
+ *     $promise = Promise\Coroutine::of(function () {
  *         $value = (yield createPromise('a'));
  *         try {
  *             $value = (yield createPromise($value . 'b'));
@@ -38,9 +38,10 @@ use Throwable;
  * @param callable $generatorFn Generator function to wrap into a promise.
  *
  * @return Promise
+ *
  * @link https://github.com/petkaantonov/bluebird/blob/master/API.md#generators inspiration
  */
-final class Coroutine implements \S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface
+final class Coroutine implements PromiseInterface
 {
     /**
      * @var PromiseInterface|null
@@ -57,12 +58,27 @@ final class Coroutine implements \S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface
     public function __construct(callable $generatorFn)
     {
         $this->generator = $generatorFn();
-        $this->result = new \S3IO\Aws3\GuzzleHttp\Promise\Promise(function () {
+        $this->result = new Promise(function () {
             while (isset($this->currentPromise)) {
                 $this->currentPromise->wait();
             }
         });
-        $this->nextCoroutine($this->generator->current());
+        try {
+            $this->nextCoroutine($this->generator->current());
+        } catch (\Exception $exception) {
+            $this->result->reject($exception);
+        } catch (Throwable $throwable) {
+            $this->result->reject($throwable);
+        }
+    }
+    /**
+     * Create a new coroutine.
+     *
+     * @return self
+     */
+    public static function of(callable $generatorFn)
+    {
+        return new self($generatorFn);
     }
     public function then(callable $onFulfilled = null, callable $onRejected = null)
     {
@@ -72,7 +88,7 @@ final class Coroutine implements \S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface
     {
         return $this->result->otherwise($onRejected);
     }
-    public function wait($unwrap = true)
+    public function wait($unwrap = \true)
     {
         return $this->result->wait($unwrap);
     }
@@ -95,7 +111,7 @@ final class Coroutine implements \S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface
     }
     private function nextCoroutine($yielded)
     {
-        $this->currentPromise = promise_for($yielded)->then([$this, '_handleSuccess'], [$this, '_handleFailure']);
+        $this->currentPromise = Create::promiseFor($yielded)->then([$this, '_handleSuccess'], [$this, '_handleFailure']);
     }
     /**
      * @internal
@@ -123,7 +139,7 @@ final class Coroutine implements \S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface
     {
         unset($this->currentPromise);
         try {
-            $nextYield = $this->generator->throw(exception_for($reason));
+            $nextYield = $this->generator->throw(Create::exceptionFor($reason));
             // The throw was caught, so keep iterating on the coroutine
             $this->nextCoroutine($nextYield);
         } catch (Exception $exception) {

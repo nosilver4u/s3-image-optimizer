@@ -3,10 +3,11 @@
 namespace S3IO\Aws3\Aws\Multipart;
 
 use S3IO\Aws3\Aws\AwsClientInterface as Client;
+use S3IO\Aws3\Aws\Exception\AwsException;
 use S3IO\Aws3\GuzzleHttp\Psr7;
 use InvalidArgumentException as IAE;
 use S3IO\Aws3\Psr\Http\Message\StreamInterface as Stream;
-abstract class AbstractUploader extends \S3IO\Aws3\Aws\Multipart\AbstractUploadManager
+abstract class AbstractUploader extends AbstractUploadManager
 {
     /** @var Stream Source of the data to be uploaded. */
     protected $source;
@@ -15,7 +16,7 @@ abstract class AbstractUploader extends \S3IO\Aws3\Aws\Multipart\AbstractUploadM
      * @param mixed  $source
      * @param array  $config
      */
-    public function __construct(\S3IO\Aws3\Aws\AwsClientInterface $client, $source, array $config = [])
+    public function __construct(Client $client, $source, array $config = [])
     {
         $this->source = $this->determineSource($source);
         parent::__construct($client, $config);
@@ -28,10 +29,10 @@ abstract class AbstractUploader extends \S3IO\Aws3\Aws\Multipart\AbstractUploadM
      *
      * @return Psr7\LimitStream
      */
-    protected function limitPartStream(\S3IO\Aws3\Psr\Http\Message\StreamInterface $stream)
+    protected function limitPartStream(Stream $stream)
     {
         // Limit what is read from the stream to the part size.
-        return new \S3IO\Aws3\GuzzleHttp\Psr7\LimitStream($stream, $this->state->getPartSize(), $this->source->tell());
+        return new Psr7\LimitStream($stream, $this->state->getPartSize(), $this->source->tell());
     }
     protected function getUploadCommands(callable $resultHandler)
     {
@@ -46,6 +47,10 @@ abstract class AbstractUploader extends \S3IO\Aws3\Aws\Multipart\AbstractUploadM
                 }
                 $command = $this->client->getCommand($this->info['command']['upload'], $data + $this->state->getId());
                 $command->getHandlerList()->appendSign($resultHandler, 'mup');
+                $numberOfParts = $this->getNumberOfParts($this->state->getPartSize());
+                if (isset($numberOfParts) && $partNumber > $numberOfParts) {
+                    throw new $this->config['exception_class']($this->state, new AwsException("Maximum part number for this job exceeded, file has likely been corrupted." . "  Please restart this upload.", $command));
+                }
                 (yield $command);
                 if ($this->source->tell() > $partStartPos) {
                     continue;
@@ -53,7 +58,7 @@ abstract class AbstractUploader extends \S3IO\Aws3\Aws\Multipart\AbstractUploadM
             }
             // Advance the source's offset if not already advanced.
             if ($seekable) {
-                $this->source->seek(min($this->source->tell() + $this->state->getPartSize(), $this->source->getSize()));
+                $this->source->seek(\min($this->source->tell() + $this->state->getPartSize(), $this->source->getSize()));
             } else {
                 $this->source->read($this->state->getPartSize());
             }
@@ -84,7 +89,7 @@ abstract class AbstractUploader extends \S3IO\Aws3\Aws\Multipart\AbstractUploadM
      * Turns the provided source into a stream and stores it.
      *
      * If a string is provided, it is assumed to be a filename, otherwise, it
-     * passes the value directly to `Psr7\stream_for()`.
+     * passes the value directly to `Psr7\Utils::streamFor()`.
      *
      * @param mixed $source
      *
@@ -93,14 +98,21 @@ abstract class AbstractUploader extends \S3IO\Aws3\Aws\Multipart\AbstractUploadM
     private function determineSource($source)
     {
         // Use the contents of a file as the data source.
-        if (is_string($source)) {
-            $source = \S3IO\Aws3\GuzzleHttp\Psr7\try_fopen($source, 'r');
+        if (\is_string($source)) {
+            $source = Psr7\Utils::tryFopen($source, 'r');
         }
         // Create a source stream.
-        $stream = \S3IO\Aws3\GuzzleHttp\Psr7\stream_for($source);
+        $stream = Psr7\Utils::streamFor($source);
         if (!$stream->isReadable()) {
-            throw new \InvalidArgumentException('Source stream must be readable.');
+            throw new IAE('Source stream must be readable.');
         }
         return $stream;
+    }
+    protected function getNumberOfParts($partSize)
+    {
+        if ($sourceSize = $this->source->getSize()) {
+            return \ceil($sourceSize / $partSize);
+        }
+        return null;
     }
 }

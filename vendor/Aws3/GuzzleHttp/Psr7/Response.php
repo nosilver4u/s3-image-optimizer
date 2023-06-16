@@ -7,7 +7,7 @@ use S3IO\Aws3\Psr\Http\Message\StreamInterface;
 /**
  * PSR-7 response implementation.
  */
-class Response implements \S3IO\Aws3\Psr\Http\Message\ResponseInterface
+class Response implements ResponseInterface
 {
     use MessageTrait;
     /** @var array Map of standard HTTP status code/reason phrases */
@@ -19,7 +19,7 @@ class Response implements \S3IO\Aws3\Psr\Http\Message\ResponseInterface
     /**
      * @param int                                  $status  Status code
      * @param array                                $headers Response headers
-     * @param string|null|resource|StreamInterface $body    Response body
+     * @param string|resource|StreamInterface|null $body    Response body
      * @param string                               $version Protocol version
      * @param string|null                          $reason  Reason phrase (when empty a default will be used based on the status code)
      */
@@ -30,7 +30,7 @@ class Response implements \S3IO\Aws3\Psr\Http\Message\ResponseInterface
         $this->assertStatusCodeRange($status);
         $this->statusCode = $status;
         if ($body !== '' && $body !== null) {
-            $this->stream = stream_for($body);
+            $this->stream = Utils::streamFor($body);
         }
         $this->setHeaders($headers);
         if ($reason == '' && isset(self::$phrases[$this->statusCode])) {
@@ -58,12 +58,12 @@ class Response implements \S3IO\Aws3\Psr\Http\Message\ResponseInterface
         if ($reasonPhrase == '' && isset(self::$phrases[$new->statusCode])) {
             $reasonPhrase = self::$phrases[$new->statusCode];
         }
-        $new->reasonPhrase = $reasonPhrase;
+        $new->reasonPhrase = (string) $reasonPhrase;
         return $new;
     }
     private function assertStatusCodeIsInteger($statusCode)
     {
-        if (filter_var($statusCode, FILTER_VALIDATE_INT) === false) {
+        if (\filter_var($statusCode, \FILTER_VALIDATE_INT) === \false) {
             throw new \InvalidArgumentException('Status code must be an integer value.');
         }
     }

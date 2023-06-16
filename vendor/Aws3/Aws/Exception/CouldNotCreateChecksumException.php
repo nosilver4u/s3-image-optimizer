@@ -4,7 +4,7 @@ namespace S3IO\Aws3\Aws\Exception;
 
 use S3IO\Aws3\Aws\HasMonitoringEventsTrait;
 use S3IO\Aws3\Aws\MonitoringEventsInterface;
-class CouldNotCreateChecksumException extends \RuntimeException implements \S3IO\Aws3\Aws\MonitoringEventsInterface
+class CouldNotCreateChecksumException extends \RuntimeException implements MonitoringEventsInterface
 {
     use HasMonitoringEventsTrait;
     public function __construct($algorithm, \Exception $previous = null)

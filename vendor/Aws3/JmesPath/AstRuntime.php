@@ -11,11 +11,11 @@ class AstRuntime
     private $interpreter;
     private $cache = [];
     private $cachedCount = 0;
-    public function __construct(\S3IO\Aws3\JmesPath\Parser $parser = null, callable $fnDispatcher = null)
+    public function __construct(Parser $parser = null, callable $fnDispatcher = null)
     {
-        $fnDispatcher = $fnDispatcher ?: \S3IO\Aws3\JmesPath\FnDispatcher::getInstance();
-        $this->interpreter = new \S3IO\Aws3\JmesPath\TreeInterpreter($fnDispatcher);
-        $this->parser = $parser ?: new \S3IO\Aws3\JmesPath\Parser();
+        $fnDispatcher = $fnDispatcher ?: FnDispatcher::getInstance();
+        $this->interpreter = new TreeInterpreter($fnDispatcher);
+        $this->parser = $parser ?: new Parser();
     }
     /**
      * Returns data from the provided input that matches a given JMESPath
@@ -26,7 +26,7 @@ class AstRuntime
      *                           is similar to data returned from json_decode
      *                           using associative arrays rather than objects.
      *
-     * @return mixed|null Returns the matching data or null
+     * @return mixed Returns the matching data or null
      */
     public function __invoke($expression, $data)
     {

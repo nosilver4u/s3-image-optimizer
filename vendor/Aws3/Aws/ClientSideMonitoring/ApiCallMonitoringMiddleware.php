@@ -10,7 +10,7 @@ use S3IO\Aws3\Psr\Http\Message\RequestInterface;
 /**
  * @internal
  */
-class ApiCallMonitoringMiddleware extends \S3IO\Aws3\Aws\ClientSideMonitoring\AbstractMonitoringMiddleware
+class ApiCallMonitoringMiddleware extends AbstractMonitoringMiddleware
 {
     /**
      * Api Call Attempt event keys for each Api Call event key
@@ -36,7 +36,7 @@ class ApiCallMonitoringMiddleware extends \S3IO\Aws3\Aws\ClientSideMonitoring\Ab
     /**
      * {@inheritdoc}
      */
-    public static function getRequestData(\S3IO\Aws3\Psr\Http\Message\RequestInterface $request)
+    public static function getRequestData(RequestInterface $request)
     {
         return [];
     }
@@ -54,10 +54,10 @@ class ApiCallMonitoringMiddleware extends \S3IO\Aws3\Aws\ClientSideMonitoring\Ab
         }
         return $data + self::getFinalAttemptData($klass);
     }
-    private static function getResultAttemptCount(\S3IO\Aws3\Aws\ResultInterface $result)
+    private static function getResultAttemptCount(ResultInterface $result)
     {
         if (isset($result['@metadata']['transferStats']['http'])) {
-            return count($result['@metadata']['transferStats']['http']);
+            return \count($result['@metadata']['transferStats']['http']);
         }
         return 1;
     }
@@ -90,8 +90,8 @@ class ApiCallMonitoringMiddleware extends \S3IO\Aws3\Aws\ClientSideMonitoring\Ab
     }
     private static function getFinalAttempt(array $events)
     {
-        for (end($events); key($events) !== null; prev($events)) {
-            $current = current($events);
+        for (\end($events); \key($events) !== null; \prev($events)) {
+            $current = \current($events);
             if (isset($current['Type']) && $current['Type'] === 'ApiCallAttempt') {
                 return $current;
             }
@@ -108,7 +108,7 @@ class ApiCallMonitoringMiddleware extends \S3IO\Aws3\Aws\ClientSideMonitoring\Ab
     /**
      * {@inheritdoc}
      */
-    protected function populateRequestEventData(\S3IO\Aws3\Aws\CommandInterface $cmd, \S3IO\Aws3\Psr\Http\Message\RequestInterface $request, array $event)
+    protected function populateRequestEventData(CommandInterface $cmd, RequestInterface $request, array $event)
     {
         $event = parent::populateRequestEventData($cmd, $request, $event);
         $event['Type'] = 'ApiCall';
@@ -120,7 +120,7 @@ class ApiCallMonitoringMiddleware extends \S3IO\Aws3\Aws\ClientSideMonitoring\Ab
     protected function populateResultEventData($result, array $event)
     {
         $event = parent::populateResultEventData($result, $event);
-        $event['Latency'] = (int) (floor(microtime(true) * 1000) - $event['Timestamp']);
+        $event['Latency'] = (int) (\floor(\microtime(\true) * 1000) - $event['Timestamp']);
         return $event;
     }
 }

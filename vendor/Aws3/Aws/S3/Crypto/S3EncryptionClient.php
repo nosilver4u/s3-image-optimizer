@@ -2,11 +2,11 @@
 
 namespace S3IO\Aws3\Aws\S3\Crypto;
 
+use S3IO\Aws3\Aws\Crypto\DecryptionTrait;
 use S3IO\Aws3\Aws\HashingStream;
 use S3IO\Aws3\Aws\PhpHash;
 use S3IO\Aws3\Aws\Crypto\AbstractCryptoClient;
 use S3IO\Aws3\Aws\Crypto\EncryptionTrait;
-use S3IO\Aws3\Aws\Crypto\DecryptionTrait;
 use S3IO\Aws3\Aws\Crypto\MetadataEnvelope;
 use S3IO\Aws3\Aws\Crypto\MaterialsProvider;
 use S3IO\Aws3\Aws\Crypto\Cipher\CipherBuilderTrait;
@@ -17,10 +17,25 @@ use S3IO\Aws3\GuzzleHttp\Psr7;
 /**
  * Provides a wrapper for an S3Client that supplies functionality to encrypt
  * data on putObject[Async] calls and decrypt data on getObject[Async] calls.
+ *
+ * Legacy implementation using older encryption workflow.
+ *
+ * AWS strongly recommends the upgrade to the S3EncryptionClientV2 (over the
+ * S3EncryptionClient), as it offers updated data security best practices to our
+ * customers who upgrade. S3EncryptionClientV2 contains breaking changes, so this
+ * will require planning by engineering teams to migrate. New workflows should
+ * just start with S3EncryptionClientV2.
+ *
+ * @deprecated
  */
-class S3EncryptionClient extends \S3IO\Aws3\Aws\Crypto\AbstractCryptoClient
+class S3EncryptionClient extends AbstractCryptoClient
 {
-    use EncryptionTrait, DecryptionTrait, CipherBuilderTrait, CryptoParamsTrait;
+    use CipherBuilderTrait;
+    use CryptoParamsTrait;
+    use DecryptionTrait;
+    use EncryptionTrait;
+    use UserAgentTrait;
+    const CRYPTO_VERSION = '1n';
     private $client;
     private $instructionFileSuffix;
     /**
@@ -31,14 +46,15 @@ class S3EncryptionClient extends \S3IO\Aws3\Aws\Crypto\AbstractCryptoClient
      *                                           default when using instruction
      *                                           files for metadata storage.
      */
-    public function __construct(\S3IO\Aws3\Aws\S3\S3Client $client, $instructionFileSuffix = null)
+    public function __construct(S3Client $client, $instructionFileSuffix = null)
     {
+        $this->appendUserAgent($client, 'feat/s3-encrypt/' . self::CRYPTO_VERSION);
         $this->client = $client;
         $this->instructionFileSuffix = $instructionFileSuffix;
     }
     private static function getDefaultStrategy()
     {
-        return new \S3IO\Aws3\Aws\S3\Crypto\HeadersMetadataStrategy();
+        return new HeadersMetadataStrategy();
     }
     /**
      * Encrypts the data in the 'Body' field of $args and promises to upload it
@@ -54,12 +70,15 @@ class S3EncryptionClient extends \S3IO\Aws3\Aws\Crypto\AbstractCryptoClient
      * - @CipherOptions: (array) Cipher options for encrypting data. Only the
      *   Cipher option is required. Accepts the following:
      *       - Cipher: (string) cbc|gcm
-     *            See also: AbstractCryptoClient::$supportedCiphers
+     *            See also: AbstractCryptoClient::$supportedCiphers. Note that
+     *            cbc is deprecated and gcm should be used when possible.
      *       - KeySize: (int) 128|192|256
      *            See also: MaterialsProvider::$supportedKeySizes
      *       - Aad: (string) Additional authentication data. This option is
      *            passed directly to OpenSSL when using gcm. It is ignored when
-     *            using cbc.
+     *            using cbc. Note if you pass in Aad for gcm encryption, the
+     *            PHP SDK will be able to decrypt the resulting object, but other
+     *            AWS SDKs may not be able to do so.
      *
      * The optional configuration arguments are as follows:
      *
@@ -84,10 +103,10 @@ class S3EncryptionClient extends \S3IO\Aws3\Aws\Crypto\AbstractCryptoClient
         unset($args['@InstructionFileSuffix']);
         $strategy = $this->getMetadataStrategy($args, $instructionFileSuffix);
         unset($args['@MetadataStrategy']);
-        $envelope = new \S3IO\Aws3\Aws\Crypto\MetadataEnvelope();
-        return \S3IO\Aws3\GuzzleHttp\Promise\promise_for($this->encrypt(\S3IO\Aws3\GuzzleHttp\Psr7\stream_for($args['Body']), $args['@CipherOptions'] ?: [], $provider, $envelope))->then(function ($encryptedBodyStream) use($args) {
-            $hash = new \S3IO\Aws3\Aws\PhpHash('sha256');
-            $hashingEncryptedBodyStream = new \S3IO\Aws3\Aws\HashingStream($encryptedBodyStream, $hash, self::getContentShaDecorator($args));
+        $envelope = new MetadataEnvelope();
+        return Promise\Create::promiseFor($this->encrypt(Psr7\Utils::streamFor($args['Body']), $args['@CipherOptions'] ?: [], $provider, $envelope))->then(function ($encryptedBodyStream) use($args) {
+            $hash = new PhpHash('sha256');
+            $hashingEncryptedBodyStream = new HashingStream($encryptedBodyStream, $hash, self::getContentShaDecorator($args));
             return [$hashingEncryptedBodyStream, $args];
         })->then(function ($putObjectContents) use($strategy, $envelope) {
             list($bodyStream, $args) = $putObjectContents;
@@ -105,7 +124,7 @@ class S3EncryptionClient extends \S3IO\Aws3\Aws\Crypto\AbstractCryptoClient
     private static function getContentShaDecorator(&$args)
     {
         return function ($hash) use(&$args) {
-            $args['ContentSHA256'] = bin2hex($hash);
+            $args['ContentSHA256'] = \bin2hex($hash);
         };
     }
     /**
@@ -122,12 +141,15 @@ class S3EncryptionClient extends \S3IO\Aws3\Aws\Crypto\AbstractCryptoClient
      * - @CipherOptions: (array) Cipher options for encrypting data. A Cipher
      *   is required. Accepts the following options:
      *       - Cipher: (string) cbc|gcm
-     *            See also: AbstractCryptoClient::$supportedCiphers
+     *            See also: AbstractCryptoClient::$supportedCiphers. Note that
+     *            cbc is deprecated and gcm should be used when possible.
      *       - KeySize: (int) 128|192|256
      *            See also: MaterialsProvider::$supportedKeySizes
      *       - Aad: (string) Additional authentication data. This option is
      *            passed directly to OpenSSL when using gcm. It is ignored when
-     *            using cbc.
+     *            using cbc. Note if you pass in Aad for gcm encryption, the
+     *            PHP SDK will be able to decrypt the resulting object, but other
+     *            AWS SDKs may not be able to do so.
      *
      * The optional configuration arguments are as follows:
      *
@@ -208,7 +230,7 @@ class S3EncryptionClient extends \S3IO\Aws3\Aws\Crypto\AbstractCryptoClient
             return $result;
         })->then(function ($result) use($saveAs) {
             if (!empty($saveAs)) {
-                file_put_contents($saveAs, (string) $result['Body'], LOCK_EX);
+                \file_put_contents($saveAs, (string) $result['Body'], \LOCK_EX);
             }
             return $result;
         });

@@ -5,12 +5,14 @@ namespace S3IO\Aws3\Aws\Api;
 /**
  * Represents an API operation.
  */
-class Operation extends \S3IO\Aws3\Aws\Api\AbstractModel
+class Operation extends AbstractModel
 {
     private $input;
     private $output;
     private $errors;
-    public function __construct(array $definition, \S3IO\Aws3\Aws\Api\ShapeMap $shapeMap)
+    private $staticContextParams = [];
+    private $contextParams;
+    public function __construct(array $definition, ShapeMap $shapeMap)
     {
         $definition['type'] = 'structure';
         if (!isset($definition['http']['method'])) {
@@ -19,7 +21,11 @@ class Operation extends \S3IO\Aws3\Aws\Api\AbstractModel
         if (!isset($definition['http']['requestUri'])) {
             $definition['http']['requestUri'] = '/';
         }
+        if (isset($definition['staticContextParams'])) {
+            $this->staticContextParams = $definition['staticContextParams'];
+        }
         parent::__construct($definition, $shapeMap);
+        $this->contextParams = $this->setContextParams();
     }
     /**
      * Returns an associative array of the HTTP attribute of the operation:
@@ -44,7 +50,7 @@ class Operation extends \S3IO\Aws3\Aws\Api\AbstractModel
             if ($input = $this['input']) {
                 $this->input = $this->shapeFor($input);
             } else {
-                $this->input = new \S3IO\Aws3\Aws\Api\StructureShape([], $this->shapeMap);
+                $this->input = new StructureShape([], $this->shapeMap);
             }
         }
         return $this->input;
@@ -60,7 +66,7 @@ class Operation extends \S3IO\Aws3\Aws\Api\AbstractModel
             if ($output = $this['output']) {
                 $this->output = $this->shapeFor($output);
             } else {
-                $this->output = new \S3IO\Aws3\Aws\Api\StructureShape([], $this->shapeMap);
+                $this->output = new StructureShape([], $this->shapeMap);
             }
         }
         return $this->output;
@@ -83,5 +89,36 @@ class Operation extends \S3IO\Aws3\Aws\Api\AbstractModel
             }
         }
         return $this->errors;
+    }
+    /**
+     * Gets static modeled static values used for
+     * endpoint resolution.
+     *
+     * @return array
+     */
+    public function getStaticContextParams()
+    {
+        return $this->staticContextParams;
+    }
+    /**
+     * Gets definition of modeled dynamic values used
+     * for endpoint resolution
+     *
+     * @return array
+     */
+    public function getContextParams()
+    {
+        return $this->contextParams;
+    }
+    private function setContextParams()
+    {
+        $members = $this->getInput()->getMembers();
+        $contextParams = [];
+        foreach ($members as $name => $shape) {
+            if (!empty($contextParam = $shape->getContextParam())) {
+                $contextParams[$contextParam['name']] = ['shape' => $name, 'type' => $shape->getType()];
+            }
+        }
+        return $contextParams;
     }
 }

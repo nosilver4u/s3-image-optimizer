@@ -5,7 +5,7 @@ namespace S3IO\Aws3\Aws\Exception;
 use S3IO\Aws3\Aws\HasMonitoringEventsTrait;
 use S3IO\Aws3\Aws\MonitoringEventsInterface;
 use S3IO\Aws3\Aws\Multipart\UploadState;
-class MultipartUploadException extends \RuntimeException implements \S3IO\Aws3\Aws\MonitoringEventsInterface
+class MultipartUploadException extends \RuntimeException implements MonitoringEventsInterface
 {
     use HasMonitoringEventsTrait;
     /** @var UploadState State of the erroneous transfer */
@@ -14,11 +14,11 @@ class MultipartUploadException extends \RuntimeException implements \S3IO\Aws3\A
      * @param UploadState      $state Upload state at time of the exception.
      * @param \Exception|array $prev  Exception being thrown.
      */
-    public function __construct(\S3IO\Aws3\Aws\Multipart\UploadState $state, $prev = null)
+    public function __construct(UploadState $state, $prev = null)
     {
         $msg = 'An exception occurred while performing a multipart upload';
-        if (is_array($prev)) {
-            $msg = strtr($msg, ['performing' => 'uploading parts to']);
+        if (\is_array($prev)) {
+            $msg = \strtr($msg, ['performing' => 'uploading parts to']);
             $msg .= ". The following parts had errors:\n";
             /** @var $error AwsException */
             foreach ($prev as $part => $error) {
@@ -35,7 +35,7 @@ class MultipartUploadException extends \RuntimeException implements \S3IO\Aws3\A
                     break;
             }
             if (isset($action)) {
-                $msg = strtr($msg, ['performing' => $action]);
+                $msg = \strtr($msg, ['performing' => $action]);
             }
             $msg .= ": {$prev->getMessage()}";
         }

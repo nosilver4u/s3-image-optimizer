@@ -7,6 +7,7 @@ use S3IO\Aws3\Aws\CommandInterface;
 use S3IO\Aws3\Aws\Exception\AwsException;
 use S3IO\Aws3\Aws\HandlerList;
 use S3IO\Aws3\Aws\ResultInterface;
+use S3IO\Aws3\Aws\S3\Exception\PermanentRedirectException;
 use S3IO\Aws3\Aws\S3\Exception\S3Exception;
 use S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface;
 use S3IO\Aws3\GuzzleHttp\Promise\RejectedPromise;
@@ -30,7 +31,7 @@ trait S3ClientTrait
      */
     public function uploadAsync($bucket, $key, $body, $acl = 'private', array $options = [])
     {
-        return (new \S3IO\Aws3\Aws\S3\ObjectUploader($this, $bucket, $key, $body, $acl, $options))->promise();
+        return (new ObjectUploader($this, $bucket, $key, $body, $acl, $options))->promise();
     }
     /**
      * @see S3ClientInterface::copy()
@@ -49,14 +50,21 @@ trait S3ClientTrait
             $source['VersionId'] = $opts['version_id'];
         }
         $destination = ['Bucket' => $destB, 'Key' => $destK];
-        return (new \S3IO\Aws3\Aws\S3\ObjectCopier($this, $source, $destination, $acl, $opts))->promise();
+        return (new ObjectCopier($this, $source, $destination, $acl, $opts))->promise();
     }
     /**
      * @see S3ClientInterface::registerStreamWrapper()
      */
     public function registerStreamWrapper()
     {
-        \S3IO\Aws3\Aws\S3\StreamWrapper::register($this);
+        StreamWrapper::register($this);
+    }
+    /**
+     * @see S3ClientInterface::registerStreamWrapperV2()
+     */
+    public function registerStreamWrapperV2()
+    {
+        StreamWrapper::register($this, 's3', null, \true);
     }
     /**
      * @see S3ClientInterface::deleteMatchingObjects()
@@ -71,16 +79,16 @@ trait S3ClientTrait
     public function deleteMatchingObjectsAsync($bucket, $prefix = '', $regex = '', array $options = [])
     {
         if (!$prefix && !$regex) {
-            return new \S3IO\Aws3\GuzzleHttp\Promise\RejectedPromise(new \RuntimeException('A prefix or regex is required.'));
+            return new RejectedPromise(new \RuntimeException('A prefix or regex is required.'));
         }
         $params = ['Bucket' => $bucket, 'Prefix' => $prefix];
         $iter = $this->getIterator('ListObjects', $params);
         if ($regex) {
             $iter = \S3IO\Aws3\Aws\filter($iter, function ($c) use($regex) {
-                return preg_match($regex, $c['Key']);
+                return \preg_match($regex, $c['Key']);
             });
         }
-        return \S3IO\Aws3\Aws\S3\BatchDelete::fromIterator($this, $bucket, $iter, $options)->promise();
+        return BatchDelete::fromIterator($this, $bucket, $iter, $options)->promise();
     }
     /**
      * @see S3ClientInterface::uploadDirectory()
@@ -94,8 +102,8 @@ trait S3ClientTrait
      */
     public function uploadDirectoryAsync($directory, $bucket, $keyPrefix = null, array $options = [])
     {
-        $d = "s3://{$bucket}" . ($keyPrefix ? '/' . ltrim($keyPrefix, '/') : '');
-        return (new \S3IO\Aws3\Aws\S3\Transfer($this, $directory, $d, $options))->promise();
+        $d = "s3://{$bucket}" . ($keyPrefix ? '/' . \ltrim($keyPrefix, '/') : '');
+        return (new Transfer($this, $directory, $d, $options))->promise();
     }
     /**
      * @see S3ClientInterface::downloadBucket()
@@ -109,8 +117,8 @@ trait S3ClientTrait
      */
     public function downloadBucketAsync($directory, $bucket, $keyPrefix = '', array $options = [])
     {
-        $s = "s3://{$bucket}" . ($keyPrefix ? '/' . ltrim($keyPrefix, '/') : '');
-        return (new \S3IO\Aws3\Aws\S3\Transfer($this, $s, $directory, $options))->promise();
+        $s = "s3://{$bucket}" . ($keyPrefix ? '/' . \ltrim($keyPrefix, '/') : '');
+        return (new Transfer($this, $s, $directory, $options))->promise();
     }
     /**
      * @see S3ClientInterface::determineBucketRegion()
@@ -133,9 +141,9 @@ trait S3ClientTrait
         $handlerList->remove('s3.permanent_redirect');
         $handlerList->remove('signer');
         $handler = $handlerList->resolve();
-        return $handler($command)->then(static function (\S3IO\Aws3\Aws\ResultInterface $result) {
+        return $handler($command)->then(static function (ResultInterface $result) {
             return $result['@metadata']['headers']['x-amz-bucket-region'];
-        }, function (\S3IO\Aws3\Aws\Exception\AwsException $e) {
+        }, function (AwsException $e) {
             $response = $e->getResponse();
             if ($response === null) {
                 throw $e;
@@ -150,7 +158,7 @@ trait S3ClientTrait
             return $response->getHeaderLine('x-amz-bucket-region');
         });
     }
-    private function determineBucketRegionFromExceptionBody(\S3IO\Aws3\Psr\Http\Message\ResponseInterface $response)
+    private function determineBucketRegionFromExceptionBody(ResponseInterface $response)
     {
         try {
             $element = $this->parseXml($response->getBody(), $response);
@@ -160,7 +168,7 @@ trait S3ClientTrait
         } catch (\Exception $e) {
             // Fallthrough on exceptions from parsing
         }
-        return false;
+        return \false;
     }
     /**
      * @see S3ClientInterface::doesBucketExist()
@@ -170,11 +178,54 @@ trait S3ClientTrait
         return $this->checkExistenceWithCommand($this->getCommand('HeadBucket', ['Bucket' => $bucket]));
     }
     /**
+     * @see S3ClientInterface::doesBucketExistV2()
+     */
+    public function doesBucketExistV2($bucket, $accept403 = \false)
+    {
+        $command = $this->getCommand('HeadBucket', ['Bucket' => $bucket]);
+        try {
+            $this->execute($command);
+            return \true;
+        } catch (S3Exception $e) {
+            if ($accept403 && $e->getStatusCode() === 403 || $e instanceof PermanentRedirectException) {
+                return \true;
+            }
+            if ($e->getStatusCode() === 404) {
+                return \false;
+            }
+            throw $e;
+        }
+    }
+    /**
      * @see S3ClientInterface::doesObjectExist()
      */
     public function doesObjectExist($bucket, $key, array $options = [])
     {
         return $this->checkExistenceWithCommand($this->getCommand('HeadObject', ['Bucket' => $bucket, 'Key' => $key] + $options));
+    }
+    /**
+     * @see S3ClientInterface::doesObjectExistV2()
+     */
+    public function doesObjectExistV2($bucket, $key, $includeDeleteMarkers = \false, array $options = [])
+    {
+        $command = $this->getCommand('HeadObject', ['Bucket' => $bucket, 'Key' => $key] + $options);
+        try {
+            $this->execute($command);
+            return \true;
+        } catch (S3Exception $e) {
+            if ($includeDeleteMarkers && $this->useDeleteMarkers($e)) {
+                return \true;
+            }
+            if ($e->getStatusCode() === 404) {
+                return \false;
+            }
+            throw $e;
+        }
+    }
+    private function useDeleteMarkers($exception)
+    {
+        $response = $exception->getResponse();
+        return !empty($response) && $response->getHeader('x-amz-delete-marker');
     }
     /**
      * Determines whether or not a resource exists using a command
@@ -184,25 +235,25 @@ trait S3ClientTrait
      * @return bool
      * @throws S3Exception|\Exception if there is an unhandled exception
      */
-    private function checkExistenceWithCommand(\S3IO\Aws3\Aws\CommandInterface $command)
+    private function checkExistenceWithCommand(CommandInterface $command)
     {
         try {
             $this->execute($command);
-            return true;
+            return \true;
         } catch (S3Exception $e) {
             if ($e->getAwsErrorCode() == 'AccessDenied') {
-                return true;
+                return \true;
             }
             if ($e->getStatusCode() >= 500) {
                 throw $e;
             }
-            return false;
+            return \false;
         }
     }
     /**
      * @see S3ClientInterface::execute()
      */
-    public abstract function execute(\S3IO\Aws3\Aws\CommandInterface $command);
+    public abstract function execute(CommandInterface $command);
     /**
      * @see S3ClientInterface::getCommand()
      */

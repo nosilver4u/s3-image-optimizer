@@ -18,7 +18,7 @@ interface MonitoringMiddlewareInterface
      * @param RequestInterface $request
      * @return array
      */
-    public static function getRequestData(\S3IO\Aws3\Psr\Http\Message\RequestInterface $request);
+    public static function getRequestData(RequestInterface $request);
     /**
      * Data for event properties to be sent to the monitoring agent.
      *
@@ -26,5 +26,5 @@ interface MonitoringMiddlewareInterface
      * @return array
      */
     public static function getResponseData($klass);
-    public function __invoke(\S3IO\Aws3\Aws\CommandInterface $cmd, \S3IO\Aws3\Psr\Http\Message\RequestInterface $request);
+    public function __invoke(CommandInterface $cmd, RequestInterface $request);
 }

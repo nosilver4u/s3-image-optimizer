@@ -2,6 +2,7 @@
 
 namespace S3IO\Aws3\Aws\Crypto\Cipher;
 
+use S3IO\Aws3\Aws\Exception\CryptoException;
 trait CipherBuilderTrait
 {
     /**
@@ -36,7 +37,7 @@ trait CipherBuilderTrait
     {
         switch ($cipherName) {
             case 'cbc':
-                return new \S3IO\Aws3\Aws\Crypto\Cipher\Cbc($iv, $keySize);
+                return new Cbc($iv, $keySize);
             default:
                 return null;
         }
@@ -59,7 +60,7 @@ trait CipherBuilderTrait
             case 'AES/CBC/PKCS5Padding':
                 return 'cbc';
             default:
-                throw new \RuntimeException('Unrecognized or unsupported' . ' AESName for reverse lookup.');
+                throw new CryptoException('Unrecognized or unsupported' . ' AESName for reverse lookup.');
         }
     }
 }

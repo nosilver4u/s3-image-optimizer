@@ -11,7 +11,7 @@ use S3IO\Aws3\GuzzleHttp\Psr7;
 /**
  * @internal Decorates a parser and validates the x-amz-crc32 header.
  */
-class Crc32ValidatingParser extends \S3IO\Aws3\Aws\Api\Parser\AbstractParser
+class Crc32ValidatingParser extends AbstractParser
 {
     /**
      * @param callable $parser Parser to wrap.
@@ -20,18 +20,18 @@ class Crc32ValidatingParser extends \S3IO\Aws3\Aws\Api\Parser\AbstractParser
     {
         $this->parser = $parser;
     }
-    public function __invoke(\S3IO\Aws3\Aws\CommandInterface $command, \S3IO\Aws3\Psr\Http\Message\ResponseInterface $response)
+    public function __invoke(CommandInterface $command, ResponseInterface $response)
     {
         if ($expected = $response->getHeaderLine('x-amz-crc32')) {
-            $hash = hexdec(\S3IO\Aws3\GuzzleHttp\Psr7\hash($response->getBody(), 'crc32b'));
+            $hash = \hexdec(Psr7\Utils::hash($response->getBody(), 'crc32b'));
             if ($expected != $hash) {
-                throw new \S3IO\Aws3\Aws\Exception\AwsException("crc32 mismatch. Expected {$expected}, found {$hash}.", $command, ['code' => 'ClientChecksumMismatch', 'connection_error' => true, 'response' => $response]);
+                throw new AwsException("crc32 mismatch. Expected {$expected}, found {$hash}.", $command, ['code' => 'ClientChecksumMismatch', 'connection_error' => \true, 'response' => $response]);
             }
         }
         $fn = $this->parser;
         return $fn($command, $response);
     }
-    public function parseMemberFromStream(\S3IO\Aws3\Psr\Http\Message\StreamInterface $stream, \S3IO\Aws3\Aws\Api\StructureShape $member, $response)
+    public function parseMemberFromStream(StreamInterface $stream, StructureShape $member, $response)
     {
         return $this->parser->parseMemberFromStream($stream, $member, $response);
     }

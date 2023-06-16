@@ -2,6 +2,7 @@
 
 namespace S3IO\Aws3\Aws\S3;
 
+use S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface;
 use S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface;
 use S3IO\Aws3\GuzzleHttp\Psr7;
 use S3IO\Aws3\Psr\Http\Message\StreamInterface;
@@ -9,7 +10,7 @@ use S3IO\Aws3\Psr\Http\Message\StreamInterface;
  * Uploads an object to S3, using a PutObject command or a multipart upload as
  * appropriate.
  */
-class ObjectUploader implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
+class ObjectUploader implements PromisorInterface
 {
     const DEFAULT_MULTIPART_THRESHOLD = 16777216;
     private $client;
@@ -19,6 +20,7 @@ class ObjectUploader implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
     private $acl;
     private $options;
     private static $defaults = ['before_upload' => null, 'concurrency' => 3, 'mup_threshold' => self::DEFAULT_MULTIPART_THRESHOLD, 'params' => [], 'part_size' => null];
+    private $addContentMD5;
     /**
      * @param S3ClientInterface $client         The S3 Client used to execute
      *                                          the upload command(s).
@@ -36,26 +38,31 @@ class ObjectUploader implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
      *                                          through 'params' are added to
      *                                          the sub command(s).
      */
-    public function __construct(\S3IO\Aws3\Aws\S3\S3ClientInterface $client, $bucket, $key, $body, $acl = 'private', array $options = [])
+    public function __construct(S3ClientInterface $client, $bucket, $key, $body, $acl = 'private', array $options = [])
     {
         $this->client = $client;
         $this->bucket = $bucket;
         $this->key = $key;
-        $this->body = \S3IO\Aws3\GuzzleHttp\Psr7\stream_for($body);
+        $this->body = Psr7\Utils::streamFor($body);
         $this->acl = $acl;
         $this->options = $options + self::$defaults;
+        // Handle "add_content_md5" option.
+        $this->addContentMD5 = isset($options['add_content_md5']) && $options['add_content_md5'] === \true;
     }
+    /**
+     * @return PromiseInterface
+     */
     public function promise()
     {
         /** @var int $mup_threshold */
         $mup_threshold = $this->options['mup_threshold'];
         if ($this->requiresMultipart($this->body, $mup_threshold)) {
             // Perform a multipart upload.
-            return (new \S3IO\Aws3\Aws\S3\MultipartUploader($this->client, $this->body, ['bucket' => $this->bucket, 'key' => $this->key, 'acl' => $this->acl] + $this->options))->promise();
+            return (new MultipartUploader($this->client, $this->body, ['bucket' => $this->bucket, 'key' => $this->key, 'acl' => $this->acl] + $this->options))->promise();
         }
         // Perform a regular PutObject operation.
-        $command = $this->client->getCommand('PutObject', ['Bucket' => $this->bucket, 'Key' => $this->key, 'Body' => $this->body, 'ACL' => $this->acl] + $this->options['params']);
-        if (is_callable($this->options['before_upload'])) {
+        $command = $this->client->getCommand('PutObject', ['Bucket' => $this->bucket, 'Key' => $this->key, 'Body' => $this->body, 'ACL' => $this->acl, 'AddContentMD5' => $this->addContentMD5] + $this->options['params']);
+        if (\is_callable($this->options['before_upload'])) {
             $this->options['before_upload']($command);
         }
         return $this->client->executeAsync($command);
@@ -74,7 +81,7 @@ class ObjectUploader implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
      *
      * @return bool
      */
-    private function requiresMultipart(\S3IO\Aws3\Psr\Http\Message\StreamInterface &$body, $threshold)
+    private function requiresMultipart(StreamInterface &$body, $threshold)
     {
         // If body size known, compare to threshold to determine if Multipart.
         if ($body->getSize() !== null) {
@@ -85,13 +92,13 @@ class ObjectUploader implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
          * Read up to 5MB into a buffer to determine how to upload the body.
          * @var StreamInterface $buffer
          */
-        $buffer = \S3IO\Aws3\GuzzleHttp\Psr7\stream_for();
-        \S3IO\Aws3\GuzzleHttp\Psr7\copy_to_stream($body, $buffer, \S3IO\Aws3\Aws\S3\MultipartUploader::PART_MIN_SIZE);
+        $buffer = Psr7\Utils::streamFor();
+        Psr7\Utils::copyToStream($body, $buffer, MultipartUploader::PART_MIN_SIZE);
         // If body < 5MB, use PutObject with the buffer.
-        if ($buffer->getSize() < \S3IO\Aws3\Aws\S3\MultipartUploader::PART_MIN_SIZE) {
+        if ($buffer->getSize() < MultipartUploader::PART_MIN_SIZE) {
             $buffer->seek(0);
             $body = $buffer;
-            return false;
+            return \false;
         }
         // If body >= 5 MB, then use multipart. [YES]
         if ($body->isSeekable() && $body->getMetadata('uri') !== 'php://input') {
@@ -103,8 +110,8 @@ class ObjectUploader implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
             // unnecessary disc usage and does not require seeking on the
             // original stream.
             $buffer->seek(0);
-            $body = new \S3IO\Aws3\GuzzleHttp\Psr7\AppendStream([$buffer, $body]);
+            $body = new Psr7\AppendStream([$buffer, $body]);
         }
-        return true;
+        return \true;
     }
 }

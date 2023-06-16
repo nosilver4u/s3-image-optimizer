@@ -34,7 +34,7 @@ use S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface;
  *
  * @link http://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html
  */
-class BatchDelete implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
+class BatchDelete implements PromisorInterface
 {
     private $bucket;
     /** @var AwsClientInterface */
@@ -58,21 +58,21 @@ class BatchDelete implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
      *
      * @return BatchDelete
      */
-    public static function fromListObjects(\S3IO\Aws3\Aws\AwsClientInterface $client, array $listObjectsParams, array $options = [])
+    public static function fromListObjects(AwsClientInterface $client, array $listObjectsParams, array $options = [])
     {
         $iter = $client->getPaginator('ListObjects', $listObjectsParams);
         $bucket = $listObjectsParams['Bucket'];
-        $fn = function (\S3IO\Aws3\Aws\S3\BatchDelete $that) use($iter) {
+        $fn = function (BatchDelete $that) use($iter) {
             return $iter->each(function ($result) use($that) {
                 $promises = [];
-                if (is_array($result['Contents'])) {
+                if (\is_array($result['Contents'])) {
                     foreach ($result['Contents'] as $object) {
                         if ($promise = $that->enqueue($object)) {
                             $promises[] = $promise;
                         }
                     }
                 }
-                return $promises ? \S3IO\Aws3\GuzzleHttp\Promise\all($promises) : null;
+                return $promises ? Promise\Utils::all($promises) : null;
             });
         };
         return new self($client, $bucket, $fn, $options);
@@ -87,10 +87,10 @@ class BatchDelete implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
      *
      * @return BatchDelete
      */
-    public static function fromIterator(\S3IO\Aws3\Aws\AwsClientInterface $client, $bucket, \Iterator $iter, array $options = [])
+    public static function fromIterator(AwsClientInterface $client, $bucket, \Iterator $iter, array $options = [])
     {
-        $fn = function (\S3IO\Aws3\Aws\S3\BatchDelete $that) use($iter) {
-            return \S3IO\Aws3\GuzzleHttp\Promise\coroutine(function () use($that, $iter) {
+        $fn = function (BatchDelete $that) use($iter) {
+            return Promise\Coroutine::of(function () use($that, $iter) {
                 foreach ($iter as $obj) {
                     if ($promise = $that->enqueue($obj)) {
                         (yield $promise);
@@ -100,6 +100,9 @@ class BatchDelete implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
         };
         return new self($client, $bucket, $fn, $options);
     }
+    /**
+     * @return PromiseInterface
+     */
     public function promise()
     {
         if (!$this->cachedPromise) {
@@ -124,13 +127,13 @@ class BatchDelete implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
      *
      * @throws \InvalidArgumentException if the provided batch_size is <= 0
      */
-    private function __construct(\S3IO\Aws3\Aws\AwsClientInterface $client, $bucket, callable $promiseFn, array $options = [])
+    private function __construct(AwsClientInterface $client, $bucket, callable $promiseFn, array $options = [])
     {
         $this->client = $client;
         $this->bucket = $bucket;
         $this->promiseCreator = $promiseFn;
         if (isset($options['before'])) {
-            if (!is_callable($options['before'])) {
+            if (!\is_callable($options['before'])) {
                 throw new \InvalidArgumentException('before must be callable');
             }
             $this->before = $options['before'];
@@ -139,31 +142,31 @@ class BatchDelete implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
             if ($options['batch_size'] <= 0) {
                 throw new \InvalidArgumentException('batch_size is not > 0');
             }
-            $this->batchSize = min($options['batch_size'], 1000);
+            $this->batchSize = \min($options['batch_size'], 1000);
         }
     }
     private function enqueue(array $obj)
     {
         $this->queue[] = $obj;
-        return count($this->queue) >= $this->batchSize ? $this->flushQueue() : null;
+        return \count($this->queue) >= $this->batchSize ? $this->flushQueue() : null;
     }
     private function flushQueue()
     {
-        static $validKeys = ['Key' => true, 'VersionId' => true];
-        if (count($this->queue) === 0) {
+        static $validKeys = ['Key' => \true, 'VersionId' => \true];
+        if (\count($this->queue) === 0) {
             return null;
         }
         $batch = [];
-        while ($obj = array_shift($this->queue)) {
-            $batch[] = array_intersect_key($obj, $validKeys);
+        while ($obj = \array_shift($this->queue)) {
+            $batch[] = \array_intersect_key($obj, $validKeys);
         }
         $command = $this->client->getCommand('DeleteObjects', ['Bucket' => $this->bucket, 'Delete' => ['Objects' => $batch]]);
         if ($this->before) {
-            call_user_func($this->before, $command);
+            \call_user_func($this->before, $command);
         }
         return $this->client->executeAsync($command)->then(function ($result) {
             if (!empty($result['Errors'])) {
-                throw new \S3IO\Aws3\Aws\S3\Exception\DeleteMultipleObjectsException($result['Deleted'] ?: [], $result['Errors']);
+                throw new DeleteMultipleObjectsException($result['Deleted'] ?: [], $result['Errors']);
             }
             return $result;
         });
@@ -176,7 +179,7 @@ class BatchDelete implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
     private function createPromise()
     {
         // Create the promise
-        $promise = call_user_func($this->promiseCreator, $this);
+        $promise = \call_user_func($this->promiseCreator, $this);
         $this->promiseCreator = null;
         // Cleans up the promise state and references.
         $cleanup = function () {
@@ -184,10 +187,10 @@ class BatchDelete implements \S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface
         };
         // When done, ensure cleanup and that any remaining are processed.
         return $promise->then(function () use($cleanup) {
-            return \S3IO\Aws3\GuzzleHttp\Promise\promise_for($this->flushQueue())->then($cleanup);
+            return Promise\Create::promiseFor($this->flushQueue())->then($cleanup);
         }, function ($reason) use($cleanup) {
             $cleanup();
-            return \S3IO\Aws3\GuzzleHttp\Promise\rejection_for($reason);
+            return Promise\Create::rejectionFor($reason);
         });
     }
 }
