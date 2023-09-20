@@ -13,7 +13,7 @@ Description: Reduce file sizes for images in S3 buckets using lossless and lossy
 Author: Exactly WWW
 Version: 2.5.0
 Requires at least: 6.0
-Requires PHP: 7.2
+Requires PHP: 7.3
 Author URI: https://ewww.io/
 License: GPLv3
 */
@@ -32,10 +32,10 @@ add_action( 'admin_menu', 's3io_admin_menu', 60 );
 add_filter( 'aws_get_client_args', 's3io_addv4_args', 8 );
 add_filter( 'aws_get_client_args', 's3io_dospaces' );
 
-require_once( plugin_dir_path( __FILE__ ) . 'vendor/Aws3/aws-autoloader.php' );
-require_once( plugin_dir_path( __FILE__ ) . 'classes/class-amazon-web-services.php' );
+require_once plugin_dir_path( __FILE__ ) . 'vendor/Aws3/aws-autoloader.php';
+require_once plugin_dir_path( __FILE__ ) . 'classes/class-amazon-web-services.php';
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
-	require_once( plugin_dir_path( __FILE__ ) . 'classes/class-s3io-cli.php' );
+	require_once plugin_dir_path( __FILE__ ) . 'classes/class-s3io-cli.php';
 }
 
 global $wpdb;
@@ -115,7 +115,7 @@ function s3io_install_table() {
 	) $charset_collate;";
 
 	// Include the upgrade library to initialize a table.
-	require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 	dbDelta( $sql );
 
 	add_option( 's3io_optimize_urls', '', '', 'no' );
@@ -768,7 +768,7 @@ function s3io_image_scan( $verbose = false ) {
 		try {
 			foreach ( $results as $result ) {
 				foreach ( $result['Contents'] as $object ) {
-					$scan_count++;
+					++$scan_count;
 					$skip_optimized = false;
 					$path           = $object['Key'];
 					s3io_debug_message( "$scan_count: checking $path" );
@@ -793,7 +793,7 @@ function s3io_image_scan( $verbose = false ) {
 							WP_CLI::line( sprintf( __( 'Queueing %1$s in %2$s.', 's3-image-optimizer' ), $path, $bucket ) );
 						}
 						s3io_debug_message( "queuing $path in $bucket" );
-						$image_count++;
+						++$image_count;
 					}
 					if ( $scan_count >= 4000 && count( $images ) ) {
 						// let's dump what we have so far to the db.

@@ -44,7 +44,7 @@ class S3IO_CLI extends WP_CLI_Command {
 	 * @param array $args A numbered array of arguments provided via WP-CLI without option names.
 	 * @param array $assoc_args An array of named arguments provided via WP-CLI.
 	 */
-	function optimize( $args, $assoc_args ) {
+	public function optimize( $args, $assoc_args ) {
 
 		// because NextGEN hasn't flushed it's buffers...
 		while ( @ob_end_flush() ); // phpcs:ignore
@@ -114,8 +114,8 @@ class S3IO_CLI extends WP_CLI_Command {
 		$image_total     = $image_count;
 		while ( $image_count > 0 ) {
 			s3io_bulk_loop( true, $verbose );
-			$image_count--;
-			$images_finished++;
+			--$image_count;
+			++$images_finished;
 			WP_CLI::line( __( 'Optimized:', 's3-image-optimizer' ) . " $images_finished / $image_total" );
 			sleep( $delay );
 		}
@@ -126,8 +126,8 @@ class S3IO_CLI extends WP_CLI_Command {
 		if ( $image_count > 0 ) {
 			while ( $image_count > 0 ) {
 				s3io_bulk_loop( true, $verbose );
-				$image_count--;
-				$images_finished++;
+				--$image_count;
+				++$images_finished;
 				WP_CLI::line( __( 'Optimized:', 's3-image-optimizer' ) . " $images_finished / $image_total" );
 			}
 		}

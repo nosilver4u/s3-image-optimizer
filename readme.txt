@@ -1,9 +1,9 @@
 === S3 Image Optimizer ===
 Contributors: nosilver4u
 Tags: amazon, s3, image, optimize, optimization, photo, picture, seo, compression, wp-cli
-Requires at least: 6.0
-Tested up to: 6.2
-Requires PHP: 7.2
+Requires at least: 6.1
+Tested up to: 6.3
+Requires PHP: 7.3
 Stable tag: 2.5.0
 License: GPLv3
 
@@ -14,6 +14,8 @@ Compress images in Amazon S3 buckets using lossless and lossy optimization metho
 The S3 Image Optimizer will optimize all your images in 1-1,000+ Amazon S3 buckets using the EWWW Image Optimizer. Since EWWW IO integrates directly with plugins like WP Offload Media, S3 IO is generally for folks who use a solution other than WP Offload Media to put their images on S3. But, if you have 20 sites sharing an S3 bucket, or have lots of buckets, and you would want to optimize them all from one place instead of 20 different sites, this is the plugin for you.
 
 S3 IO features a web-based bulk optimization process, and a WP-CLI interface for massive buckets. S3 IO works with any S3-compatible storage service including Linode, Backblaze B2 and Digital Ocean Spaces.
+
+You may report security issues through our Patchstack Vulnerability Disclosure Program. The Patchstack team helps validate, triage and handle any security vulnerabilities. [Report a security vulnerability.](https://patchstack.com/database/vdp/s3-image-optimizer)
 
 == Installation ==
 
@@ -59,6 +61,9 @@ If you've tried everything, and WP-CLI isn't an option with your web host, find 
 Most problems we've seen are either permissions-related, or covered by the timeout stuff above. If you have a question, [shoot us an email](https://ewww.io/contact-us/)!
 
 == Changelog ==
+
+= 2.5.1 =
+* changed: use updated WP coding standards
 
 = 2.5.0 =
 * added: compatibility with EWWW Image Optimizer 7+ and better future-proofing to detect compatibility errors

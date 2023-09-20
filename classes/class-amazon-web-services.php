@@ -55,7 +55,7 @@ class Amazon_Web_Services {
 	 *
 	 * @return bool
 	 */
-	function are_access_keys_set() {
+	public function are_access_keys_set() {
 		return $this->get_access_key_id() && $this->get_secret_access_key();
 	}
 
@@ -167,9 +167,9 @@ class Amazon_Web_Services {
 	 * @return Aws An AWS object with an established connection.
 	 * @throws \Exception AWS configuration/connection error.
 	 */
-	function get_client() {
+	public function get_client() {
 		if ( $this->needs_access_keys() ) {
-			throw new \Exception( __( 'You must first set your AWS access keys to use S3 Image Optimizer.', 's3-image-optimizer' ) );
+			throw new \Exception( esc_html__( 'You must first set your AWS access keys to use S3 Image Optimizer.', 's3-image-optimizer' ) );
 		}
 
 		if ( is_null( $this->client ) ) {
