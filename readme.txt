@@ -4,7 +4,7 @@ Tags: amazon, s3, image, optimize, optimization, photo, picture, seo, compressio
 Requires at least: 6.1
 Tested up to: 6.3
 Requires PHP: 7.3
-Stable tag: 2.5.0
+Stable tag: 2.5.1
 License: GPLv3
 
 Compress images in Amazon S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
@@ -64,6 +64,7 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 
 = 2.5.1 =
 * changed: use updated WP coding standards
+* changed: cleanup AWS SDK folder
 
 = 2.5.0 =
 * added: compatibility with EWWW Image Optimizer 7+ and better future-proofing to detect compatibility errors
