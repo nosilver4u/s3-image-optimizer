@@ -74,7 +74,7 @@ function s3io_admin_init() {
 		add_action( 'network_admin_notices', 's3io_missing_ewww_plugin' );
 		add_action( 'admin_notices', 's3io_missing_ewww_plugin' );
 	}
-	if ( ! function_exists( 'ewwwio' ) || ! function_exists( 'ewww_image_optimizer_filesize' ) ) {
+	if ( function_exists( 'ewww_image_optimizer' ) && ( ! function_exists( 'ewwwio' ) || ! function_exists( 'ewww_image_optimizer_filesize' ) ) ) {
 		add_action( 'network_admin_notices', 's3io_ewww_plugin_outdated' );
 		add_action( 'admin_notices', 's3io_ewww_plugin_outdated' );
 	}
