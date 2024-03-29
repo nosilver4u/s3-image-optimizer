@@ -14,6 +14,7 @@ Author: Exactly WWW
 Version: 2.5.1
 Requires at least: 6.1
 Requires PHP: 7.3
+Requires Plugins: ewww-image-optimizer
 Author URI: https://ewww.io/
 License: GPLv3
 */
