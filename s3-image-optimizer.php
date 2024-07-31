@@ -1653,7 +1653,7 @@ function s3io_url_loop() {
 						/* translators: %s: AWS/S3 error message(s) */
 						esc_html__( 'Error retrieving path information: %s', 's3-image-optimizer' ),
 						wp_kses_post( implode( '<br>', $s3io_errors ) )
-					)
+					),
 				)
 			)
 		);
@@ -1681,7 +1681,7 @@ function s3io_url_loop() {
 			wp_json_encode(
 				array(
 					/* translators: %s: path to uploads directory */
-					'error' => sprintf( esc_html__( 'Received an unusable working directory: %s', 's3-image-optimizer' ), $upload_dir )
+					'error' => sprintf( esc_html__( 'Received an unusable working directory: %s', 's3-image-optimizer' ), $upload_dir ),
 				)
 			)
 		);
@@ -1697,7 +1697,7 @@ function s3io_url_loop() {
 						/* translators: %s: AWS/S3 error message */
 						esc_html__( 'Error connecting to S3: %s', 's3-image-optimizer' ),
 						wp_kses_post( $e->getMessage() )
-					)
+					),
 				)
 			)
 		);
@@ -1827,7 +1827,7 @@ function s3io_object_ownership_enforced( $bucket ) {
 	} catch ( Exception $e ) {
 		s3io_debug_message( "unable to get ownership controls for {$url_args['bucket']}: " . $e->getMessage() );
 	}
-	return $false;	
+	return $false;
 }
 
 /**
