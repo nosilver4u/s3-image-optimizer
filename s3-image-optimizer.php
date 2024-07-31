@@ -195,6 +195,9 @@ function s3io_addv4_args( $args ) {
 	if ( defined( 'S3_IMAGE_OPTIMIZER_ENDPOINT' ) && S3_IMAGE_OPTIMIZER_ENDPOINT ) {
 		$args['endpoint'] = S3_IMAGE_OPTIMIZER_ENDPOINT;
 	}
+	if ( defined( 'S3_IMAGE_OPTIMIZER_PATH_STYLE' ) && S3_IMAGE_OPTIMIZER_PATH_STYLE ) {
+		$args['use_path_style_endpoint'] = true;
+	}
 	return $args;
 }
 

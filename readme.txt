@@ -39,6 +39,17 @@ define( 'S3_IMAGE_OPTIMIZER_FOLDER', 'wp-content/uploads' );
 define( 'S3_IMAGE_OPTIMIZER_REGION', 'eu-west-1' );
 `
 
+* If you are using an S3-compatible provider other than Amazon, you can define the region and endpoint constants:
+`
+define('S3_IMAGE_OPTIMIZER_REGION', 'us-west-004');
+define('S3_IMAGE_OPTIMIZER_ENDPOINT', 'https://s3.us-west-004.backblazeb2.com');
+`
+
+* Likewise, you may need to force the usage of path-style endpoints with some providers:
+`
+define( 'S3_IMAGE_OPTIMIZER_PATH_STYLE', true );
+`
+
 [View the full list of region names.](https://docs.aws.amazon.com/general/latest/gr/rande.html#regional-endpoints)
 
 = Usage =
@@ -64,6 +75,7 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 
 = 2.6.0 =
 * added: support for buckets with object ownership enforced
+* added: force usage of path-style endpoint with S3_IMAGE_OPTIMIZER_PATH_STYLE
 * changed: improved error handling for optimize by URL
 * changed: bumped minimum WP and PHP versions
 * fixed: malformed image size information in optimization table
