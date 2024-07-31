@@ -1,9 +1,9 @@
 === S3 Image Optimizer ===
 Contributors: nosilver4u
-Tags: amazon, s3, image, optimize, optimization, photo, picture, seo, compression, wp-cli
-Requires at least: 6.1
-Tested up to: 6.3
-Requires PHP: 7.3
+Tags: s3, image, optimize, compression, wp-cli
+Requires at least: 6.3
+Tested up to: 6.6
+Requires PHP: 8.1
 Stable tag: 2.5.1
 License: GPLv3
 
@@ -61,6 +61,12 @@ If you've tried everything, and WP-CLI isn't an option with your web host, find 
 Most problems we've seen are either permissions-related, or covered by the timeout stuff above. If you have a question, [shoot us an email](https://ewww.io/contact-us/)!
 
 == Changelog ==
+
+= 2.6.0 =
+* added: support for buckets with object ownership enforced
+* changed: improved error handling for optimize by URL
+* changed: bumped minimum WP and PHP versions
+* fixed: malformed image size information in optimization table
 
 = 2.5.1 =
 * changed: use updated WP coding standards

@@ -11,9 +11,9 @@ Plugin Name: S3 Image Optimizer
 Plugin URI: https://wordpress.org/plugins/s3-image-optimizer/
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Exactly WWW
-Version: 2.5.1
-Requires at least: 6.1
-Requires PHP: 7.3
+Version: 2.5.1.1
+Requires at least: 6.3
+Requires PHP: 8.1
 Requires Plugins: ewww-image-optimizer
 Author URI: https://ewww.io/
 License: GPLv3
@@ -636,12 +636,13 @@ function s3io_get_selected_buckets() {
 	}
 	if ( empty( $bucket_list ) ) {
 		global $s3io_amazon_web_services;
+		$bucket_list = array();
 		try {
 			$client = $s3io_amazon_web_services->get_client();
 		} catch ( Exception $e ) {
 			$s3io_errors[] = $e->getMessage();
+			return $bucket_list;
 		}
-		$bucket_list = array();
 		try {
 			$buckets = $client->listBuckets();
 		} catch ( Exception $e ) {
@@ -699,7 +700,6 @@ function s3io_image_scan( $verbose = false ) {
 
 	$bucket_list = s3io_get_selected_buckets();
 	if ( ! empty( $s3io_errors ) ) {
-		/* translators: %s: AWS error message */
 		if ( $wpcli ) {
 			return 0;
 		}
@@ -721,11 +721,7 @@ function s3io_image_scan( $verbose = false ) {
 			}
 		}
 		try {
-			$location = $client->getBucketLocation(
-				array(
-					'Bucket' => $bucket,
-				)
-			);
+			$location = $client->getBucketLocation( array( 'Bucket' => $bucket ) );
 		} catch ( Exception $e ) {
 			$location = new WP_Error( 'exception', $e->getMessage() );
 		}
@@ -1134,7 +1130,7 @@ function s3io_table() {
 	echo '<br /><table class="wp-list-table widefat media" cellspacing="0"><thead><tr><th>' . esc_html__( 'Bucket', 's3-image-optimizer' ) . '</th><th>' . esc_html__( 'Filename', 's3-image-optimizer' ) . '</th><th>' . esc_html__( 'Image Optimizer', 's3-image-optimizer' ) . '</th></tr></thead>';
 	$alternate = true;
 	foreach ( $already_optimized as $optimized_image ) {
-		$file_size = size_format( $optimized_image['image_size'], 2 );
+		$file_size = size_format( $optimized_image['image_size'], 1 );
 		$file_size = str_replace( '.00 B ', ' B', $file_size );
 		?>
 		<tr<?php echo ( $alternate ? " class='alternate'" : '' ); ?> id="s3io-image-<?php echo (int) $optimized_image['id']; ?>">
@@ -1143,7 +1139,7 @@ function s3io_table() {
 			<td>
 				<?php
 				/* translators: %s: size of image, in bytes */
-				echo esc_html( $optimized_image['results'] ) . ' <br>' . sprintf( esc_html__( 'Image Size: %s', 's3-image-optimizer' ), (int) $file_size );
+				echo esc_html( $optimized_image['results'] ) . ' <br>' . sprintf( esc_html__( 'Image Size: %s', 's3-image-optimizer' ), esc_html( $file_size ) );
 				?>
 				<br><a class="removeimage" onclick="s3ioRemoveImage( <?php echo (int) $optimized_image['id']; ?> )"><?php esc_html_e( 'Remove from table', 's3-image-optimizer' ); ?></a>
 			</td>
@@ -1472,6 +1468,9 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 		}
 		die();
 	}
+
+	$ownership_control_enforced = s3io_object_ownership_enforced( $image_record['bucket'] );
+
 	$new_size = ewww_image_optimizer_filesize( $filename );
 	if ( $new_size < $fetch_result['ContentLength'] ) {
 		if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
@@ -1485,12 +1484,20 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 					'Bucket'       => $image_record['bucket'],
 					'Key'          => $image_record['path'],
 					'SourceFile'   => $filename,
-					'ACL'          => 'public-read',
 					'ContentType'  => $fetch_result['ContentType'],
 					'CacheControl' => 'max-age=31536000',
 					'Expires'      => gmdate( 'D, d M Y H:i:s O', time() + 31536000 ),
 				)
 			);
+			if ( ! $ownership_control_enforced ) {
+				$client->putObjectAcl(
+					array(
+						'Bucket' => $image_record['bucket'],
+						'Key'    => $image_record['path'],
+						'ACL'    => 'public-read',
+					)
+				);
+			}
 		} catch ( Exception $e ) {
 			if ( defined( 'WP_CLI' ) && WP_CLI ) {
 				WP_CLI::error( "Put failed for bucket: {$image_record['bucket']}, path: {$image_record['path']}, message:" . $e->getMessage() );
@@ -1519,12 +1526,20 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 					'Bucket'       => $image_record['bucket'],
 					'Key'          => $image_record['path'] . '.webp',
 					'SourceFile'   => $filename . '.webp',
-					'ACL'          => 'public-read',
 					'ContentType'  => 'image/webp',
 					'CacheControl' => 'max-age=31536000',
 					'Expires'      => gmdate( 'D, d M Y H:i:s O', time() + 31536000 ),
 				)
 			);
+			if ( ! $ownership_control_enforced ) {
+				$client->putObjectAcl(
+					array(
+						'Bucket' => $image_record['bucket'],
+						'Key'    => $image_record['path'] . '.webp',
+						'ACL'    => 'public-read',
+					)
+				);
+			}
 		} catch ( Exception $e ) {
 			if ( defined( 'WP_CLI' ) && WP_CLI ) {
 				WP_CLI::error( "Put failed for bucket: {$image_record['bucket']}, path: {$image_record['path']}.webp, message:" . $e->getMessage() );
@@ -1605,13 +1620,15 @@ function s3io_bulk_cleanup( $auto = false ) {
  */
 function s3io_url_loop() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
-	$output = array();
 	// Verify that an authorized user has started the optimizer.
 	$permissions = apply_filters( 'ewww_image_optimizer_bulk_permissions', '' );
 	if ( empty( $_REQUEST['s3io_wpnonce'] ) || ! wp_verify_nonce( sanitize_key( $_REQUEST['s3io_wpnonce'] ), 's3io-url' ) || ! current_user_can( $permissions ) ) {
 		die( wp_json_encode( array( 'error' => esc_html__( 'Access token has expired, please reload the page.', 's3-image-optimizer' ) ) ) );
 	}
-	$started = microtime( true );
+	global $s3io_errors;
+	$s3io_errors = array();
+	$output      = array();
+	$started     = microtime( true );
 	if (
 		function_exists( 'ewww_image_optimizer_stl_check' ) &&
 		ewww_image_optimizer_stl_check() &&
@@ -1622,23 +1639,34 @@ function s3io_url_loop() {
 	}
 	if ( empty( $_REQUEST['s3io_url'] ) ) {
 		$output['error'] = esc_html__( 'No URL supplied', 's3-image-optimizer' );
-		echo wp_json_encode( $output );
-		die();
+		wp_die( wp_json_encode( $output ) );
 	}
 	$url = esc_url_raw( wp_unslash( $_REQUEST['s3io_url'] ) );
 	if ( ! empty( $url ) ) {
 		$url_args = s3io_get_args_from_url( $url );
 	}
+	if ( ! empty( $s3io_errors ) ) {
+		wp_die(
+			wp_json_encode(
+				array(
+					'error' => sprintf(
+						/* translators: %s: AWS/S3 error message(s) */
+						esc_html__( 'Error retrieving path information: %s', 's3-image-optimizer' ),
+						wp_kses_post( implode( '<br>', $s3io_errors ) )
+					)
+				)
+			)
+		);
+	}
 	if ( empty( $url ) || empty( $url_args ) ) {
 		$output['error'] = esc_html__( 'Invalid URL supplied', 's3-image-optimizer' );
-		echo wp_json_encode( $output );
-		die();
+		wp_die( wp_json_encode( $output ) );
 	}
 	$url_args['path'] = ltrim( $url_args['path'], '/' );
 
 	$upload_dir = s3io_make_upload_dir();
 	if ( ! $upload_dir ) {
-		die(
+		wp_die(
 			wp_json_encode(
 				array(
 					'error' => esc_html__( 'Could not create the /s3io/ folder within the WordPress uploads folder, please adjust the permissions and try again.', 's3-image-optimizer' ),
@@ -1649,23 +1677,30 @@ function s3io_url_loop() {
 	$upload_dir = trailingslashit( $upload_dir ) . sanitize_file_name( $url_args['bucket'] ) . '/';
 	s3io_debug_message( "stashing files in $upload_dir" );
 	if ( false !== strpos( $upload_dir, 's3://' ) ) {
-		/* translators: %s: path to uploads directory */
-		die( wp_json_encode( array( 'error' => sprintf( esc_html__( 'Received an unusable working directory: %s', 's3-image-optimizer' ), $upload_dir ) ) ) );
+		wp_die(
+			wp_json_encode(
+				array(
+					/* translators: %s: path to uploads directory */
+					'error' => sprintf( esc_html__( 'Received an unusable working directory: %s', 's3-image-optimizer' ), $upload_dir )
+				)
+			)
+		);
 	}
 	global $s3io_amazon_web_services;
 	try {
 		$client = $s3io_amazon_web_services->get_client();
 	} catch ( Exception $e ) {
-		die( wp_json_encode( array( 'error' => wp_kses_post( $e->getMessage() ) ) ) );
-	}
-	try {
-		$location = $client->getBucketLocation(
-			array(
-				'Bucket' => $url_args['bucket'],
+		wp_die(
+			wp_json_encode(
+				array(
+					'error' => sprintf(
+						/* translators: %s: AWS/S3 error message */
+						esc_html__( 'Error connecting to S3: %s', 's3-image-optimizer' ),
+						wp_kses_post( $e->getMessage() )
+					)
+				)
 			)
 		);
-	} catch ( Exception $e ) {
-		$location = new WP_Error( 'exception', $e->getMessage() );
 	}
 	$filename = $upload_dir . $url_args['path'];
 	$full_dir = dirname( $filename );
@@ -1691,27 +1726,40 @@ function s3io_url_loop() {
 		$output['error'] = esc_html__( 'License Exceeded', 's3-image-optimizer' );
 		die( wp_json_encode( $output ) );
 	}
+
+	$ownership_control_enforced = s3io_object_ownership_enforced( $url_args['bucket'] );
+
 	$new_size = filesize( $filename );
 	if ( $new_size < $fetch_result['ContentLength'] ) {
 		// Re-upload to S3.
-		$client->putObject(
-			array(
-				'Bucket'       => $url_args['bucket'],
-				'Key'          => $url_args['path'],
-				'SourceFile'   => $filename,
-				'ACL'          => 'public-read',
-				'ContentType'  => $fetch_result['ContentType'],
-				'CacheControl' => 'max-age=31536000',
-				'Expires'      => gmdate( 'D, d M Y H:i:s O', time() + 31536000 ),
-			)
-		);
+		try {
+			$client->putObject(
+				array(
+					'Bucket'       => $url_args['bucket'],
+					'Key'          => $url_args['path'],
+					'SourceFile'   => $filename,
+					'ContentType'  => $fetch_result['ContentType'],
+					'CacheControl' => 'max-age=31536000',
+					'Expires'      => gmdate( 'D, d M Y H:i:s O', time() + 31536000 ),
+				)
+			);
+			if ( ! $ownership_control_enforced ) {
+				$client->putObjectAcl(
+					array(
+						'Bucket' => $url_args['bucket'],
+						'Key'    => $url_args['path'],
+						'ACL'    => 'public-read',
+					)
+				);
+			}
+		} catch ( Exception $e ) {
+			$output['error'] = wp_kses_post( "Put failed for bucket: {$url_args['bucket']}, path: {$url_args['path']}, message:" . $e->getMessage() );
+			wp_die( wp_json_encode( $output ) );
+		}
 	}
 	unlink( $filename );
 	$webp_size = ewww_image_optimizer_filesize( $filename . '.webp' );
 	if ( $webp_size ) {
-		if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
-			WP_CLI::line( "About to upload $filename.webp" );
-		}
 		// Upload to S3.
 		try {
 			$client->putObject(
@@ -1719,23 +1767,23 @@ function s3io_url_loop() {
 					'Bucket'       => $url_args['bucket'],
 					'Key'          => $url_args['path'] . '.webp',
 					'SourceFile'   => $filename . '.webp',
-					'ACL'          => 'public-read',
 					'ContentType'  => 'image/webp',
 					'CacheControl' => 'max-age=31536000',
 					'Expires'      => gmdate( 'D, d M Y H:i:s O', time() + 31536000 ),
 				)
 			);
-		} catch ( Exception $e ) {
-			if ( defined( 'WP_CLI' ) && WP_CLI ) {
-				WP_CLI::error( "Put failed for bucket: {$image_record['bucket']}, path: {$image_record['path']}.webp, message:" . $e->getMessage() );
-			} else {
-				$output['error'] = wp_kses_post( "Put failed for bucket: {$image_record['bucket']}, path: {$image_record['path']}.webp, message:" . $e->getMessage() );
-				echo wp_json_encode( $output );
+			if ( ! $ownership_control_enforced ) {
+				$client->putObjectAcl(
+					array(
+						'Bucket' => $url_args['bucket'],
+						'Key'    => $url_args['path'] . '.webp',
+						'ACL'    => 'public-read',
+					)
+				);
 			}
-			die();
-		}
-		if ( $verbose && defined( 'WP_CLI' ) && WP_CLI ) {
-			WP_CLI::line( "Finished upload of $filename.webp" );
+		} catch ( Exception $e ) {
+			$output['error'] = wp_kses_post( "Put failed for bucket: {$url_args['bucket']}, path: {$url_args['path']}.webp, message:" . $e->getMessage() );
+			wp_die( wp_json_encode( $output ) );
 		}
 		unlink( $filename . '.webp' );
 	}
@@ -1753,6 +1801,33 @@ function s3io_url_loop() {
 	$output['results'] .= sprintf( esc_html__( 'Elapsed: %.3f seconds', 's3-image-optimizer' ) . '</p>', $elapsed );
 
 	die( wp_json_encode( $output ) );
+}
+
+/**
+ * Check if object ownership is enforced. If so, ACLs are disabled!
+ *
+ * @param string $bucket The name of the bucket to check.
+ * @return bool True if object ownership is enforced, false otherwise or if unknown.
+ */
+function s3io_object_ownership_enforced( $bucket ) {
+	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
+	global $s3io_amazon_web_services;
+	try {
+		$client = $s3io_amazon_web_services->get_client();
+	} catch ( Exception $e ) {
+		s3io_debug_message( 'unable to initialize AWS client lib' );
+		return false;
+	}
+	try {
+		$s3result       = $client->getBucketOwnershipControls( array( 'Bucket' => $bucket ) );
+		$owner_controls = $s3result->get( 'OwnershipControls' );
+		if ( ! empty( $owner_controls ) && ! empty( $owner_controls['Rules'][0]['ObjectOwnership'] ) && 'BucketOwnerEnforced' === $owner_controls['Rules'][0]['ObjectOwnership'] ) {
+			return true;
+		}
+	} catch ( Exception $e ) {
+		s3io_debug_message( "unable to get ownership controls for {$url_args['bucket']}: " . $e->getMessage() );
+	}
+	return $false;	
 }
 
 /**
@@ -1786,28 +1861,8 @@ function s3io_get_args_from_url( $url ) {
 			);
 		}
 	}
-	global $s3io_amazon_web_services;
-	try {
-		$client = $s3io_amazon_web_services->get_client();
-	} catch ( Exception $e ) {
-		s3io_debug_message( 'unable to initialize AWS client lib' );
-		return false;
-	}
-	try {
-		$buckets = $client->listBuckets();
-	} catch ( Exception $e ) {
-		$buckets = new WP_Error( 'exception', $e->getMessage() );
-	}
 
-	// If retrieving buckets from AWS failed, then we use the bucketlist option.
-	if ( is_wp_error( $buckets ) ) {
-		$bucket_list = get_option( 's3io_bucketlist' );
-	} else {
-		$bucket_list = array();
-		foreach ( $buckets['Buckets'] as $aws_bucket ) {
-			$bucket_list[] = $aws_bucket['Name'];
-		}
-	}
+	$bucket_list = s3io_get_selected_buckets();
 
 	// If we don't have a list of buckets, we can't do much more here.
 	if ( empty( $bucket_list ) || ! is_array( $bucket_list ) ) {
@@ -1835,17 +1890,15 @@ function s3io_get_args_from_url( $url ) {
 
 	// Otherwise, we must have a custom domain, so lets do a quick search for the attachment in all buckets.
 	// Doing it in a separate foreach, in case there are performance implications of switching the region in accounts with lots of buckets.
+	global $s3io_amazon_web_services;
+	try {
+		$client = $s3io_amazon_web_services->get_client();
+	} catch ( Exception $e ) {
+		s3io_debug_message( 'unable to initialize AWS client lib' );
+		return false;
+	}
 	$key = ltrim( $urlinfo['path'], '/' );
 	foreach ( $bucket_list as $aws_bucket ) {
-		try {
-			$location = $client->getBucketLocation(
-				array(
-					'Bucket' => $aws_bucket,
-				)
-			);
-		} catch ( Exception $e ) {
-			$location = new WP_Error( 'exception', $e->getMessage() );
-		}
 		try {
 			$exists = $client->headObject(
 				array(
