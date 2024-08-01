@@ -1,3 +1,10 @@
+= 2.6.0 =
+* added: support for buckets with object ownership enforced
+* added: force usage of path-style endpoint with S3_IMAGE_OPTIMIZER_PATH_STYLE
+* changed: improved error handling for optimize by URL
+* changed: bumped minimum WP and PHP versions
+* fixed: malformed image size information in optimization table
+
 = 2.5.1 =
 * changed: use updated WP coding standards
 * changed: cleanup AWS SDK folder

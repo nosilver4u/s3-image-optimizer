@@ -4,7 +4,7 @@ Tags: s3, image, optimize, compression, wp-cli
 Requires at least: 6.3
 Tested up to: 6.6
 Requires PHP: 8.1
-Stable tag: 2.5.1
+Stable tag: 2.6.0
 License: GPLv3
 
 Compress images in Amazon S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
