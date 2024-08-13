@@ -1271,12 +1271,12 @@ function s3io_table_update( $path, $opt_size, $orig_size, $results_msg, $id = fa
 		}
 	}
 	s3io_debug_message( "s3io: falling back to search by $path" );
-	$optimized_query = $wpdb->get_results( $wpdb->prepare( "SELECT id,orig_size,results,path FROM $wpdb->s3io_images WHERE path = %s", $path ), ARRAY_A );
+	$optimized_query = $wpdb->get_results( $wpdb->prepare( "SELECT id,orig_size,results,path,bucket FROM $wpdb->s3io_images WHERE path = %s", $path ), ARRAY_A );
 	if ( ! empty( $optimized_query ) ) {
 		s3io_debug_message( 's3io: found results by path, checking...' );
 		foreach ( $optimized_query as $image ) {
 			s3io_debug_message( $image['path'] );
-			if ( $image['path'] === $path ) {
+			if ( $image['path'] === $path && $image['bucket'] === $bucket ) {
 				s3io_debug_message( 'found a match' );
 				$already_optimized = $image;
 			}
@@ -1559,7 +1559,7 @@ function s3io_bulk_loop( $auto = false, $verbose = false ) {
 		unlink( $filename . '.webp' );
 	}
 	s3io_debug_message( gmdate( 'Y-m-d H:i:s' ) . 'stash db record' );
-	s3io_table_update( $image_record['path'], $new_size, $fetch_result['ContentLength'], $results[1], $image_record['id'] );
+	s3io_table_update( $image_record['path'], $new_size, $fetch_result['ContentLength'], $results[1], $image_record['id'], $image_record['bucket'] );
 	s3io_debug_message( gmdate( 'Y-m-d H:i:s' ) . 'remove db record' );
 	// Make sure ewww doesn't keep a record of these files.
 	$wpdb->delete( $wpdb->ewwwio_images, array( 'path' => ewww_image_optimizer_relativize_path( $filename ) ) );
@@ -1814,23 +1814,29 @@ function s3io_url_loop() {
  */
 function s3io_object_ownership_enforced( $bucket ) {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
+	$enforced = false;
+	if ( defined( 'S3IO_OBJECT_OWNERSHIP_ENFORCED' ) ) {
+		return S3IO_OBJECT_OWNERSHIP_ENFORCED;
+	}
 	global $s3io_amazon_web_services;
 	try {
 		$client = $s3io_amazon_web_services->get_client();
 	} catch ( Exception $e ) {
 		s3io_debug_message( 'unable to initialize AWS client lib' );
-		return false;
+		$client = false;
 	}
-	try {
-		$s3result       = $client->getBucketOwnershipControls( array( 'Bucket' => $bucket ) );
-		$owner_controls = $s3result->get( 'OwnershipControls' );
-		if ( ! empty( $owner_controls ) && ! empty( $owner_controls['Rules'][0]['ObjectOwnership'] ) && 'BucketOwnerEnforced' === $owner_controls['Rules'][0]['ObjectOwnership'] ) {
-			return true;
+	if ( $client && is_object( $client ) ) {
+		try {
+			$s3result       = $client->getBucketOwnershipControls( array( 'Bucket' => $bucket ) );
+			$owner_controls = $s3result->get( 'OwnershipControls' );
+			if ( ! empty( $owner_controls ) && ! empty( $owner_controls['Rules'][0]['ObjectOwnership'] ) && 'BucketOwnerEnforced' === $owner_controls['Rules'][0]['ObjectOwnership'] ) {
+				$enforced = true;
+			}
+		} catch ( Exception $e ) {
+			s3io_debug_message( "unable to get ownership controls for {$url_args['bucket']}: " . $e->getMessage() );
 		}
-	} catch ( Exception $e ) {
-		s3io_debug_message( "unable to get ownership controls for {$url_args['bucket']}: " . $e->getMessage() );
 	}
-	return $false;
+	return apply_filters( 's3io_object_ownership_enforced', $enforced );
 }
 
 /**
