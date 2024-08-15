@@ -11,7 +11,7 @@ Plugin Name: S3 Image Optimizer
 Plugin URI: https://wordpress.org/plugins/s3-image-optimizer/
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Exactly WWW
-Version: 2.6.0
+Version: 2.6.1
 Requires at least: 6.3
 Requires PHP: 8.1
 Requires Plugins: ewww-image-optimizer
@@ -22,7 +22,7 @@ License: GPLv3
 /**
  * Constants
  */
-define( 'S3IO_VERSION', 260 );
+define( 'S3IO_VERSION', 261 );
 // This is the full path of the plugin file itself.
 define( 'S3IO_PLUGIN_FILE', __FILE__ );
 // This is the path of the plugin file relative to the plugins/ folder.
