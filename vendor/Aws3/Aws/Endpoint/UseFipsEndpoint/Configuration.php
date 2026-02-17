@@ -3,7 +3,6 @@
 namespace S3IO\Aws3\Aws\Endpoint\UseFipsEndpoint;
 
 use S3IO\Aws3\Aws;
-use S3IO\Aws3\Aws\ClientResolver;
 use S3IO\Aws3\Aws\Endpoint\UseFipsEndpoint\Exception\ConfigurationException;
 class Configuration implements ConfigurationInterface
 {
@@ -11,7 +10,7 @@ class Configuration implements ConfigurationInterface
     public function __construct($useFipsEndpoint)
     {
         $this->useFipsEndpoint = Aws\boolean_value($useFipsEndpoint);
-        if (\is_null($this->useFipsEndpoint)) {
+        if (is_null($this->useFipsEndpoint)) {
             throw new ConfigurationException("'use_fips_endpoint' config option" . " must be a boolean value.");
         }
     }

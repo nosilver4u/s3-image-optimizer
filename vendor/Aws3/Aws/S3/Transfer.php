@@ -5,6 +5,7 @@ namespace S3IO\Aws3\Aws\S3;
 use S3IO\Aws3\Aws;
 use S3IO\Aws3\Aws\CommandInterface;
 use S3IO\Aws3\Aws\Exception\AwsException;
+use S3IO\Aws3\Aws\MetricsBuilder;
 use S3IO\Aws3\GuzzleHttp\Promise;
 use S3IO\Aws3\GuzzleHttp\Promise\PromiseInterface;
 use S3IO\Aws3\GuzzleHttp\Promise\PromisorInterface;
@@ -26,6 +27,7 @@ class Transfer implements PromisorInterface
     private $concurrency;
     private $mupThreshold;
     private $before;
+    private $after;
     private $s3Args = [];
     private $addContentMD5;
     /**
@@ -51,6 +53,11 @@ class Transfer implements PromisorInterface
      *   callback accepts a single argument: Aws\CommandInterface $command.
      *   The provided command will be either a GetObject, PutObject,
      *   InitiateMultipartUpload, or UploadPart command.
+     * - after: (callable) A callback to invoke after each transfer promise is fulfilled.
+     *   The function is invoked with three arguments: the fulfillment value, the index
+     *   position from the iterable list of the promise, and the aggregate
+     *   promise that manages all the promises. The aggregate promise may
+     *   be resolved from within the callback to short-circuit the promise.
      * - mup_threshold: (int) Size in bytes in which a multipart upload should
      *   be used instead of PutObject. Defaults to 20971520 (20 MB).
      * - concurrency: (int, default=5) Number of files to upload concurrently.
@@ -76,7 +83,7 @@ class Transfer implements PromisorInterface
             $this->s3Args = $this->getS3Args($this->destination['path']);
         }
         // Prepare the source.
-        if (\is_string($source)) {
+        if (is_string($source)) {
             $this->sourceMetadata = $this->prepareTarget($source);
             $this->source = $source;
         } elseif ($source instanceof Iterator) {
@@ -101,28 +108,36 @@ class Transfer implements PromisorInterface
         // Handle "before" callback option.
         if (isset($options['before'])) {
             $this->before = $options['before'];
-            if (!\is_callable($this->before)) {
+            if (!is_callable($this->before)) {
                 throw new \InvalidArgumentException('before must be a callable.');
+            }
+        }
+        // Handle "after" callback option.
+        if (isset($options['after'])) {
+            $this->after = $options['after'];
+            if (!is_callable($this->after)) {
+                throw new \InvalidArgumentException('after must be a callable.');
             }
         }
         // Handle "debug" option.
         if (isset($options['debug'])) {
             if ($options['debug'] === \true) {
-                $options['debug'] = \fopen('php://output', 'w');
+                $options['debug'] = fopen('php://output', 'w');
             }
-            if (\is_resource($options['debug'])) {
+            if (is_resource($options['debug'])) {
                 $this->addDebugToBefore($options['debug']);
             }
         }
         // Handle "add_content_md5" option.
         $this->addContentMD5 = isset($options['add_content_md5']) && $options['add_content_md5'] === \true;
+        MetricsBuilder::appendMetricsCaptureMiddleware($this->client->getHandlerList(), MetricsBuilder::S3_TRANSFER);
     }
     /**
      * Transfers the files.
      *
      * @return PromiseInterface
      */
-    public function promise()
+    public function promise(): PromiseInterface
     {
         // If the promise has been created, just return it.
         if (!$this->promise) {
@@ -155,7 +170,7 @@ class Transfer implements PromisorInterface
      */
     private function getS3Args($path)
     {
-        $parts = \explode('/', \str_replace('s3://', '', $path), 2);
+        $parts = explode('/', str_replace('s3://', '', $path), 2);
         $args = ['Bucket' => $parts[0]];
         if (isset($parts[1])) {
             $args['Key'] = $parts[1];
@@ -171,7 +186,7 @@ class Transfer implements PromisorInterface
      */
     private function determineScheme($path)
     {
-        return !\strpos($path, '://') ? 'file' : \explode('://', $path)[0];
+        return !strpos($path, '://') ? 'file' : explode('://', $path)[0];
     }
     /**
      * Normalize a path so that it has UNIX-style directory separators and no trailing /
@@ -182,21 +197,21 @@ class Transfer implements PromisorInterface
      */
     private function normalizePath($path)
     {
-        return \rtrim(\str_replace('\\', '/', $path), '/');
+        return rtrim(str_replace('\\', '/', $path), '/');
     }
     private function resolvesOutsideTargetDirectory($sink, $objectKey)
     {
         $resolved = [];
-        $sections = \explode('/', $sink);
-        $targetSectionsLength = \count(\explode('/', $objectKey));
-        $targetSections = \array_slice($sections, -($targetSectionsLength + 1));
+        $sections = explode('/', $sink);
+        $targetSectionsLength = count(explode('/', $objectKey));
+        $targetSections = array_slice($sections, -($targetSectionsLength + 1));
         $targetDirectory = $targetSections[0];
         foreach ($targetSections as $section) {
             if ($section === '.' || $section === '') {
                 continue;
             }
             if ($section === '..') {
-                \array_pop($resolved);
+                array_pop($resolved);
                 if (empty($resolved) || $resolved[0] !== $targetDirectory) {
                     return \true;
                 }
@@ -213,22 +228,22 @@ class Transfer implements PromisorInterface
         $commands = [];
         foreach ($this->getDownloadsIterator() as $object) {
             // Prepare the sink.
-            $objectKey = \preg_replace('/^' . \preg_quote($prefix, '/') . '/', '', $object);
+            $objectKey = preg_replace('/^' . preg_quote($prefix, '/') . '/', '', $object);
             $sink = $this->destination['path'] . '/' . $objectKey;
             $command = $this->client->getCommand('GetObject', $this->getS3Args($object) + ['@http' => ['sink' => $sink]]);
             if ($this->resolvesOutsideTargetDirectory($sink, $objectKey)) {
                 throw new AwsException('Cannot download key ' . $objectKey . ', its relative path resolves outside the' . ' parent directory', $command);
             }
             // Create the directory if needed.
-            $dir = \dirname($sink);
-            if (!\is_dir($dir) && !\mkdir($dir, 0777, \true)) {
+            $dir = dirname($sink);
+            if (!is_dir($dir) && !mkdir($dir, 0777, \true)) {
                 throw new \RuntimeException("Could not create dir: {$dir}");
             }
             // Create the command.
             $commands[] = $command;
         }
         // Create a GetObject command pool and return the promise.
-        return (new Aws\CommandPool($this->client, $commands, ['concurrency' => $this->concurrency, 'before' => $this->before, 'rejected' => function ($reason, $idx, Promise\PromiseInterface $p) {
+        return (new Aws\CommandPool($this->client, $commands, ['concurrency' => $this->concurrency, 'before' => $this->before, 'fulfill' => $this->after, 'rejected' => function ($reason, $idx, Promise\PromiseInterface $p) {
             $p->reject($reason);
         }]))->promise();
     }
@@ -236,18 +251,18 @@ class Transfer implements PromisorInterface
     {
         // Map each file into a promise that performs the actual transfer.
         $files = \S3IO\Aws3\Aws\map($this->getUploadsIterator(), function ($file) {
-            return \filesize($file) >= $this->mupThreshold ? $this->uploadMultipart($file) : $this->upload($file);
+            return filesize($file) >= $this->mupThreshold ? $this->uploadMultipart($file) : $this->upload($file);
         });
         // Create an EachPromise, that will concurrently handle the upload
         // operations' yielded promises from the iterator.
-        return Promise\Each::ofLimitAll($files, $this->concurrency);
+        return Promise\Each::ofLimitAll($files, $this->concurrency, $this->after);
     }
     /** @return Iterator */
     private function getUploadsIterator()
     {
-        if (\is_string($this->source)) {
+        if (is_string($this->source)) {
             return Aws\filter(Aws\recursive_dir_iterator($this->sourceMetadata['path']), function ($file) {
-                return !\is_dir($file);
+                return !is_dir($file);
             });
         }
         return $this->source;
@@ -255,18 +270,18 @@ class Transfer implements PromisorInterface
     /** @return Iterator */
     private function getDownloadsIterator()
     {
-        if (\is_string($this->source)) {
+        if (is_string($this->source)) {
             $listArgs = $this->getS3Args($this->sourceMetadata['path']);
             if (isset($listArgs['Key'])) {
                 $listArgs['Prefix'] = $listArgs['Key'] . '/';
                 unset($listArgs['Key']);
             }
             $files = $this->client->getPaginator('ListObjects', $listArgs)->search('Contents[].Key');
-            $files = Aws\map($files, function ($key) use($listArgs) {
+            $files = Aws\map($files, function ($key) use ($listArgs) {
                 return "s3://{$listArgs['Bucket']}/{$key}";
             });
             return Aws\filter($files, function ($key) {
-                return \substr($key, -1, 1) !== '/';
+                return substr($key, -1, 1) !== '/';
             });
         }
         return $this->source;
@@ -278,7 +293,7 @@ class Transfer implements PromisorInterface
         $args['Key'] = $this->createS3Key($filename);
         $args['AddContentMD5'] = $this->addContentMD5;
         $command = $this->client->getCommand('PutObject', $args);
-        $this->before and \call_user_func($this->before, $command);
+        $this->before and call_user_func($this->before, $command);
         return $this->client->executeAsync($command);
     }
     private function uploadMultipart($filename)
@@ -291,9 +306,9 @@ class Transfer implements PromisorInterface
     private function createS3Key($filename)
     {
         $filename = $this->normalizePath($filename);
-        $relative_file_path = \ltrim(\preg_replace('#^' . \preg_quote($this->sourceMetadata['path']) . '#', '', $filename), '/\\');
+        $relative_file_path = ltrim(preg_replace('#^' . preg_quote($this->sourceMetadata['path']) . '#', '', $filename), '/\\');
         if (isset($this->s3Args['Key'])) {
-            return \rtrim($this->s3Args['Key'], '/') . '/' . $relative_file_path;
+            return rtrim($this->s3Args['Key'], '/') . '/' . $relative_file_path;
         }
         return $relative_file_path;
     }
@@ -302,7 +317,7 @@ class Transfer implements PromisorInterface
         $before = $this->before;
         $sourcePath = $this->sourceMetadata['path'];
         $s3Args = $this->s3Args;
-        $this->before = static function (CommandInterface $command) use($before, $debug, $sourcePath, $s3Args) {
+        $this->before = static function (CommandInterface $command) use ($before, $debug, $sourcePath, $s3Args) {
             // Call the composed before function.
             $before and $before($command);
             // Determine the source and dest values based on operation.
@@ -320,8 +335,8 @@ class Transfer implements PromisorInterface
                 case 'CreateMultipartUpload':
                 case 'CompleteMultipartUpload':
                     $sourceKey = $command['Key'];
-                    if (isset($s3Args['Key']) && \strpos($sourceKey, $s3Args['Key']) === 0) {
-                        $sourceKey = \substr($sourceKey, \strlen($s3Args['Key']) + 1);
+                    if (isset($s3Args['Key']) && strpos($sourceKey, $s3Args['Key']) === 0) {
+                        $sourceKey = substr($sourceKey, strlen($s3Args['Key']) + 1);
                     }
                     $source = "{$sourcePath}/{$sourceKey}";
                     $dest = "s3://{$command['Bucket']}/{$command['Key']}";
@@ -330,11 +345,11 @@ class Transfer implements PromisorInterface
                     throw new \UnexpectedValueException("Transfer encountered an unexpected operation: {$operation}.");
             }
             // Print the debugging message.
-            $context = \sprintf('%s -> %s (%s)', $source, $dest, $operation);
+            $context = sprintf('%s -> %s (%s)', $source, $dest, $operation);
             if (isset($part)) {
                 $context .= " : Part={$part}";
             }
-            \fwrite($debug, "Transferring {$context}\n");
+            fwrite($debug, "Transferring {$context}\n");
         };
     }
 }

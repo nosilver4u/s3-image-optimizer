@@ -4,8 +4,8 @@ namespace S3IO\Aws3\Aws\Api\Serializer;
 
 use S3IO\Aws3\Aws\Api\Service;
 use S3IO\Aws3\Aws\CommandInterface;
-use S3IO\Aws3\Aws\EndpointV2\EndpointProviderV2;
 use S3IO\Aws3\Aws\EndpointV2\EndpointV2SerializerTrait;
+use S3IO\Aws3\Aws\EndpointV2\Ruleset\RulesetEndpoint;
 use S3IO\Aws3\GuzzleHttp\Psr7\Request;
 use S3IO\Aws3\Psr\Http\Message\RequestInterface;
 /**
@@ -28,7 +28,7 @@ class JsonRpcSerializer
      * @param string   $endpoint      Endpoint to connect to
      * @param JsonBody $jsonFormatter Optional JSON formatter to use
      */
-    public function __construct(Service $api, $endpoint, JsonBody $jsonFormatter = null)
+    public function __construct(Service $api, $endpoint, ?JsonBody $jsonFormatter = null)
     {
         $this->endpoint = $endpoint;
         $this->api = $api;
@@ -45,15 +45,18 @@ class JsonRpcSerializer
      *
      * @return RequestInterface
      */
-    public function __invoke(CommandInterface $command, $endpointProvider = null, $clientArgs = null)
+    public function __invoke(CommandInterface $command, $endpoint = null)
     {
         $operationName = $command->getName();
         $operation = $this->api->getOperation($operationName);
         $commandArgs = $command->toArray();
-        $headers = ['X-Amz-Target' => $this->api->getMetadata('targetPrefix') . '.' . $operationName, 'Content-Type' => $this->contentType];
-        if ($endpointProvider instanceof EndpointProviderV2) {
-            $this->setRequestOptions($endpointProvider, $command, $operation, $commandArgs, $clientArgs, $headers);
+        $body = $this->jsonFormatter->build($operation->getInput(), $commandArgs);
+        $headers = ['X-Amz-Target' => $this->api->getMetadata('targetPrefix') . '.' . $operationName, 'Content-Type' => $this->contentType, 'Content-Length' => strlen($body)];
+        if ($endpoint instanceof RulesetEndpoint) {
+            $this->setEndpointV2RequestOptions($endpoint, $headers);
         }
-        return new Request($operation['http']['method'], $this->endpoint, $headers, $this->jsonFormatter->build($operation->getInput(), $commandArgs));
+        $requestUri = $operation['http']['requestUri'] ?? null;
+        $absoluteUri = str_ends_with($this->endpoint, '/') ? $this->endpoint : $this->endpoint . $requestUri;
+        return new Request($operation['http']['method'], $absoluteUri, $headers, $body);
     }
 }

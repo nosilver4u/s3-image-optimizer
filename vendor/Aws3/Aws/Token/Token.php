@@ -2,15 +2,16 @@
 
 namespace S3IO\Aws3\Aws\Token;
 
-use S3IO\Aws3\Aws\Token\TokenInterface;
+use S3IO\Aws3\Aws\Identity\BearerTokenIdentity;
 /**
  * Basic implementation of the AWS Token interface that allows callers to
  * pass in an AWS token in the constructor.
  */
-class Token implements TokenInterface, \Serializable
+class Token extends BearerTokenIdentity implements TokenInterface, \Serializable
 {
     protected $token;
     protected $expires;
+    protected ?TokenSource $source;
     /**
      * Constructs a new basic token object, with the specified AWS
      * token
@@ -18,10 +19,11 @@ class Token implements TokenInterface, \Serializable
      * @param string $token   Security token to use
      * @param int    $expires UNIX timestamp for when the token expires
      */
-    public function __construct($token, $expires = null)
+    public function __construct($token, $expires = null, ?TokenSource $source = null)
     {
         $this->token = $token;
         $this->expires = $expires;
+        $this->source = $source;
     }
     /**
      * Sets the state of a token object
@@ -47,32 +49,39 @@ class Token implements TokenInterface, \Serializable
         return $this->expires;
     }
     /**
+     * @return string|null
+     */
+    public function getSource(): ?string
+    {
+        return $this->source?->value;
+    }
+    /**
      * @return bool
      */
     public function isExpired()
     {
-        return $this->expires !== null && \time() >= $this->expires;
+        return $this->expires !== null && time() >= $this->expires;
     }
     /**
      * @return array
      */
     public function toArray()
     {
-        return ['token' => $this->token, 'expires' => $this->expires];
+        return ['token' => $this->token, 'expires' => $this->expires, 'source' => $this->source?->value];
     }
     /**
      * @return string
      */
     public function serialize()
     {
-        return \json_encode($this->__serialize());
+        return json_encode($this->__serialize());
     }
     /**
      * Sets the state of the object from serialized json data
      */
     public function unserialize($serialized)
     {
-        $data = \json_decode($serialized, \true);
+        $data = json_decode($serialized, \true);
         $this->__unserialize($data);
     }
     /**
@@ -89,5 +98,6 @@ class Token implements TokenInterface, \Serializable
     {
         $this->token = $data['token'];
         $this->expires = $data['expires'];
+        $this->source = isset($data['source']) ? TokenSource::from($data['source']) : null;
     }
 }

@@ -1,5 +1,6 @@
 <?php
 
+declare (strict_types=1);
 namespace S3IO\Aws3\GuzzleHttp\Promise;
 
 /**

@@ -9,7 +9,6 @@
 
 namespace S3IO;
 
-use S3IO\Aws3\Aws\S3\S3Client;
 use S3IO\Aws3\Aws\Sdk;
 
 use Exception;

@@ -4,6 +4,7 @@ namespace S3IO\Aws3\Aws\S3\Crypto;
 
 use S3IO\Aws3\Aws\Crypto\DecryptionTrait;
 use S3IO\Aws3\Aws\HashingStream;
+use S3IO\Aws3\Aws\MetricsBuilder;
 use S3IO\Aws3\Aws\PhpHash;
 use S3IO\Aws3\Aws\Crypto\AbstractCryptoClient;
 use S3IO\Aws3\Aws\Crypto\EncryptionTrait;
@@ -48,9 +49,10 @@ class S3EncryptionClient extends AbstractCryptoClient
      */
     public function __construct(S3Client $client, $instructionFileSuffix = null)
     {
-        $this->appendUserAgent($client, 'feat/s3-encrypt/' . self::CRYPTO_VERSION);
+        trigger_error('S3EncryptionClient is deprecated and will be removed in a future ' . 'release due to security vulnerabilities. Please migrate to ' . 'S3EncryptionClientV3 as soon as possible.' . "\n" . 'See https://docs.aws.amazon.com/sdk-for-php/v3/developer-guide/' . 'security.html for upgrade guidance.', \E_USER_DEPRECATED);
         $this->client = $client;
         $this->instructionFileSuffix = $instructionFileSuffix;
+        MetricsBuilder::appendMetricsCaptureMiddleware($this->client->getHandlerList(), MetricsBuilder::S3_CRYPTO_V1N);
     }
     private static function getDefaultStrategy()
     {
@@ -104,11 +106,11 @@ class S3EncryptionClient extends AbstractCryptoClient
         $strategy = $this->getMetadataStrategy($args, $instructionFileSuffix);
         unset($args['@MetadataStrategy']);
         $envelope = new MetadataEnvelope();
-        return Promise\Create::promiseFor($this->encrypt(Psr7\Utils::streamFor($args['Body']), $args['@CipherOptions'] ?: [], $provider, $envelope))->then(function ($encryptedBodyStream) use($args) {
+        return Promise\Create::promiseFor($this->encrypt(Psr7\Utils::streamFor($args['Body']), $args['@CipherOptions'] ?: [], $provider, $envelope))->then(function ($encryptedBodyStream) use ($args) {
             $hash = new PhpHash('sha256');
             $hashingEncryptedBodyStream = new HashingStream($encryptedBodyStream, $hash, self::getContentShaDecorator($args));
             return [$hashingEncryptedBodyStream, $args];
-        })->then(function ($putObjectContents) use($strategy, $envelope) {
+        })->then(function ($putObjectContents) use ($strategy, $envelope) {
             list($bodyStream, $args) = $putObjectContents;
             if ($strategy === null) {
                 $strategy = self::getDefaultStrategy();
@@ -123,8 +125,8 @@ class S3EncryptionClient extends AbstractCryptoClient
     }
     private static function getContentShaDecorator(&$args)
     {
-        return function ($hash) use(&$args) {
-            $args['ContentSHA256'] = \bin2hex($hash);
+        return function ($hash) use (&$args) {
+            $args['ContentSHA256'] = bin2hex($hash);
         };
     }
     /**
@@ -220,7 +222,7 @@ class S3EncryptionClient extends AbstractCryptoClient
         if (!empty($args['SaveAs'])) {
             $saveAs = $args['SaveAs'];
         }
-        $promise = $this->client->getObjectAsync($args)->then(function ($result) use($provider, $instructionFileSuffix, $strategy, $args) {
+        $promise = $this->client->getObjectAsync($args)->then(function ($result) use ($provider, $instructionFileSuffix, $strategy, $args) {
             if ($strategy === null) {
                 $strategy = $this->determineGetObjectStrategy($result, $instructionFileSuffix);
             }
@@ -228,9 +230,9 @@ class S3EncryptionClient extends AbstractCryptoClient
             $provider = $provider->fromDecryptionEnvelope($envelope);
             $result['Body'] = $this->decrypt($result['Body'], $provider, $envelope, isset($args['@CipherOptions']) ? $args['@CipherOptions'] : []);
             return $result;
-        })->then(function ($result) use($saveAs) {
+        })->then(function ($result) use ($saveAs) {
             if (!empty($saveAs)) {
-                \file_put_contents($saveAs, (string) $result['Body'], \LOCK_EX);
+                file_put_contents($saveAs, (string) $result['Body'], \LOCK_EX);
             }
             return $result;
         });

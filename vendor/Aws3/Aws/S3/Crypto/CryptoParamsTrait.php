@@ -16,11 +16,13 @@ trait CryptoParamsTrait
     }
     protected function getInstructionFileSuffix(array $args)
     {
+        //= ../specification/s3-encryption/data-format/metadata-strategy.md#instruction-file
+        //# Instruction File writes MUST be optionally configured during client creation or on each PutObject request.
         return !empty($args['@InstructionFileSuffix']) ? $args['@InstructionFileSuffix'] : $this->instructionFileSuffix;
     }
     protected function determineGetObjectStrategy($result, $instructionFileSuffix)
     {
-        if (isset($result['Metadata'][MetadataEnvelope::CONTENT_KEY_V2_HEADER])) {
+        if (isset($result['Metadata'][MetadataEnvelope::CONTENT_KEY_V2_HEADER]) || isset($result['Metadata'][MetadataEnvelope::ENCRYPTED_DATA_KEY_V3])) {
             return new HeadersMetadataStrategy();
         }
         return new InstructionFileMetadataStrategy($this->client, $instructionFileSuffix);
@@ -31,7 +33,7 @@ trait CryptoParamsTrait
             if ($args['@MetadataStrategy'] instanceof MetadataStrategyInterface) {
                 return $args['@MetadataStrategy'];
             }
-            if (\is_string($args['@MetadataStrategy'])) {
+            if (is_string($args['@MetadataStrategy'])) {
                 switch ($args['@MetadataStrategy']) {
                     case HeadersMetadataStrategy::class:
                         return new HeadersMetadataStrategy();

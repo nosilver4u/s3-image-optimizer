@@ -73,6 +73,12 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 
 == Changelog ==
 
+= 2.6.2 =
+* added: support for WebP naming mode in EWWW Image Optimizer
+* updated: AWS SDK to latest version
+* fixed: multiple strings missing i18n
+* fixed: undefined variables in exception handlers
+
 = 2.6.1 =
 * added: override auto-detected object ownership enforcement via S3IO_OBJECT_OWNERSHIP_ENFORCED constant or s3io_object_ownership_enforced filter: set either to true to disable per-object acls
 * fixed: optimize by URL incorrectly overwrites previous optimization results if multiple buckets have objects with identical paths

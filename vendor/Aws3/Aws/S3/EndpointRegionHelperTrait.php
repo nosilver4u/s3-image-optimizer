@@ -36,8 +36,8 @@ trait EndpointRegionHelperTrait
     }
     private function isMatchingSigningRegion($arnRegion, $clientRegion, $service, PartitionEndpointProvider $provider)
     {
-        $arnRegion = \S3IO\Aws3\Aws\strip_fips_pseudo_regions(\strtolower($arnRegion));
-        $clientRegion = \strtolower($clientRegion);
+        $arnRegion = \S3IO\Aws3\Aws\strip_fips_pseudo_regions(strtolower($arnRegion));
+        $clientRegion = strtolower($clientRegion);
         if ($arnRegion === $clientRegion) {
             return \true;
         }
