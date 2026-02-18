@@ -75,6 +75,7 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 
 = 2.6.2 =
 * added: support for WebP naming mode in EWWW Image Optimizer
+* added: support for optimizing WebP image uploads
 * updated: AWS SDK to latest version
 * fixed: multiple strings missing i18n
 * fixed: undefined variables in exception handlers

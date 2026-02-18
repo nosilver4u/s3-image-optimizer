@@ -11,7 +11,7 @@ Plugin Name: S3 Image Optimizer
 Plugin URI: https://wordpress.org/plugins/s3-image-optimizer/
 Description: Reduce file sizes for images in S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
 Author: Exactly WWW
-Version: 2.6.1
+Version: 2.6.1.3
 Requires at least: 6.3
 Requires PHP: 8.1
 Requires Plugins: ewww-image-optimizer
@@ -22,7 +22,7 @@ License: GPLv3
 /**
  * Constants
  */
-define( 'S3IO_VERSION', 261 );
+define( 'S3IO_VERSION', 261.32 );
 
 add_action( 'admin_init', 's3io_admin_init' );
 add_action( 'admin_menu', 's3io_admin_menu', 60 );
@@ -667,6 +667,68 @@ function s3io_get_selected_buckets() {
 }
 
 /**
+ * Check for .webp copies of optimized images and remove them from the queue.
+ *
+ * If a .webp image was previously optimized, we'll leave it alone, whether it is a copy or not.
+ */
+function s3io_check_webp_copies() {
+	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
+	if ( ! ewwwio()->get_option( 'ewww_image_optimizer_webp' ) || empty( ewwwio()->get_option( 'ewww_image_optimizer_webp_level' ) ) ) {
+		return;
+	}
+	global $wpdb;
+	s3io_debug_message( 'WebP Conversion is enabled, and so is WebP Optimization, checking for WebP copies.' );
+	$original_extensions = array( 'png', 'jpg', 'jpeg', 'gif' );
+	$full_list           = array();
+	$all_images          = $wpdb->get_results( "SELECT path,bucket FROM $wpdb->s3io_images", ARRAY_A );
+	if ( empty( $all_images ) ) {
+		s3io_debug_message( 'no images in database, skipping check for .webp copies' );
+		return;
+	}
+	foreach ( $all_images as $image_record ) {
+		$image_path               = $image_record['path'];
+		$full_list[ $image_path ] = $image_record;
+	}
+	$pending_images = s3io_table_get_pending();
+	s3io_debug_message( 'checking ' . count( $pending_images ) . ' against full list of ' . count( $full_list ) . ' images for .webp copies' );
+	// Now we will loop through the pending images and check if any of them are a .webp copy of another image in the bucket.
+	// We are specifically looking for WebP images where the .webp extension has replaced the original extension,
+	// since we already check for appended .webp extensions earlier in s3io_image_scan().
+	// If a Webp image is a copy of another JPG/PNG/GIF image, we will remove them from the table, since we don't further optimize .webp image copies.
+	foreach ( $pending_images as $pending_image ) {
+		if ( empty( $pending_image['path'] ) || empty( $pending_image['id'] ) || empty( $pending_image['bucket'] ) ) {
+			continue;
+		}
+		$pending_path = $pending_image['path'];
+		if ( ! str_ends_with( $pending_path, '.webp' ) ) {
+			continue;
+		}
+		$webp_copy     = false;
+		$original_path = s3io_remove_from_end( $pending_path, '.webp' );
+		$info          = pathinfo( $original_path );
+		$ext           = strtolower( $info['extension'] ?? '' );
+		s3io_debug_message( "checking $pending_path if it is a .webp copy, possible original path is $original_path, ext: $ext" );
+		if ( empty( $ext ) || ! in_array( $ext, $original_extensions, true ) ) {
+			s3io_debug_message( 'this is not an appended .webp copy, so checking for original image with extension replaced' );
+			// This is not an appended .webp copy, now to find if there is a matching original image with the same path but a different extension.
+			foreach ( $original_extensions as $ext ) {
+				if ( isset( $full_list[ $original_path . '.' . $ext ] ) && $pending_image['bucket'] === $full_list[ $original_path . '.' . $ext ]['bucket'] ) {
+					$webp_copy = true;
+				} elseif ( isset( $full_list[ $original_path . '.' . strtoupper( $ext ) ] ) && $pending_image['bucket'] === $full_list[ $original_path . '.' . strtoupper( $ext ) ]['bucket'] ) {
+					$webp_copy = true;
+				}
+				// If we found a matching original image, this .webp is a copy and we can remove it from the pending table.
+				if ( $webp_copy ) {
+					s3io_debug_message( "removing $pending_path from image table since it is a .webp copy of $original_path.$ext" );
+					s3io_table_delete_image( $pending_image['id'] );
+					break;
+				}
+			}
+		}
+	}
+}
+
+/**
  * Scan buckets for images and store in database.
  *
  * @param bool $verbose Enable (true) to output WP_CLI logging. Default false.
@@ -692,6 +754,9 @@ function s3io_image_scan( $verbose = false ) {
 		'%s', // path.
 		'%d', // image_size.
 	);
+
+	$original_extensions = array( 'png', 'jpg', 'jpeg', 'gif' );
+
 	/* $start = microtime( true ); */
 	global $s3io_amazon_web_services;
 	try {
@@ -768,7 +833,24 @@ function s3io_image_scan( $verbose = false ) {
 					$skip_optimized = false;
 					$path           = $object['Key'];
 					s3io_debug_message( "$scan_count: checking $path" );
-					if ( preg_match( '/\.(jpe?g|png|gif)$/i', $path ) ) {
+					if ( preg_match( '/\.(jpe?g|png|gif|webp)$/i', $path ) ) {
+						// If the naming mode is 'replace', we'll deal with those later, after all images have been scanned.
+						// At that point, we'll have a full list of all the files in the selected buckets, and can check the table for a matching original.
+						if ( str_ends_with( $path, '.webp' ) ) {
+							if ( empty( ewwwio()->get_option( 'ewww_image_optimizer_webp_level' ) ) ) {
+								// If webp optimization is disabled, we should skip it.
+								continue;
+							}
+							// If we have a .webp file, we need to see if the .webp extension was appended.
+							$stripped_path     = s3io_remove_from_end( $path, '.webp' );
+							$stripped_info     = pathinfo( $stripped_path );
+							$stripped_ext      = strtolower( $stripped_info['extension'] ?? '' );
+							$is_real_extension = in_array( $stripped_ext, $original_extensions, true );
+							if ( $is_real_extension ) {
+								// This is a .webp file that was created by appending .webp to an original filename, so we should skip it.
+								continue;
+							}
+						}
 						$image_size = (int) $object['Size'];
 						if ( isset( $optimized_list[ $path ] ) && $optimized_list[ $path ] === $image_size ) {
 							s3io_debug_message( 'size matches db, skipping' );
@@ -851,13 +933,13 @@ function s3io_image_scan( $verbose = false ) {
 		s3io_debug_message( 'saving queue to db' );
 		ewww_image_optimizer_mass_insert( $wpdb->s3io_images, $images, $field_formats );
 	}
-	s3io_debug_message( "found $image_count images to optimize" );
 	update_option( 's3io_buckets_scanned', '', false );
+	s3io_check_webp_copies();
 	if ( ! $wpcli ) {
 		$pending = s3io_table_count_pending();
 		/* translators: %d: number of images */
 		$message = $pending ? sprintf( esc_html__( 'There are %d images to be optimized.', 's3-image-optimizer' ), $pending ) : esc_html__( 'There is nothing left to optimize.', 's3-image-optimizer' );
-		if ( function_exists( 'ewww_image_optimizer_get_option' ) && ewww_image_optimizer_get_option( 'ewww_image_optimizer_webp' ) ) {
+		if ( $pending && function_exists( 'ewww_image_optimizer_get_option' ) && ewww_image_optimizer_get_option( 'ewww_image_optimizer_webp' ) ) {
 			$message .= ' *' . esc_html__( 'WebP versions will be generated and uploaded in accordance with EWWW IO settings.', 's3-image-optimizer' );
 		}
 		die(
@@ -1075,7 +1157,29 @@ function s3io_bulk_display() {
 }
 
 /**
+ * Get a list of un-optimized images in the s3io_images table.
+ *
+ * @param string $bucket Optional bucket name to filter by.
+ * @return array List of un-optimized images, with id, path, and bucket fields.
+ */
+function s3io_table_get_pending( $bucket = '' ) {
+	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
+	global $wpdb;
+	if ( ! empty( $bucket ) ) {
+		$pending = $wpdb->get_results( $wpdb->prepare( "SELECT id,path,bucket FROM $wpdb->s3io_images WHERE bucket LIKE %s AND image_size IS NULL", $bucket ), ARRAY_A );
+	} else {
+		$pending = $wpdb->get_results( "SELECT id,path,bucket FROM $wpdb->s3io_images WHERE image_size IS NULL", ARRAY_A );
+	}
+	if ( is_array( $pending ) && count( $pending ) > 0 ) {
+		return $pending;
+	}
+	return array();
+}
+
+/**
  * Find the number of optimized images in the s3io_images table.
+ *
+ * @return int Number of optimized images.
  */
 function s3io_table_count_optimized() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
@@ -1086,6 +1190,8 @@ function s3io_table_count_optimized() {
 
 /**
  * Find the number of un-optimized images in the s3io_images table.
+ *
+ * @return int Number of pending/un-optimized images.
  */
 function s3io_table_count_pending() {
 	s3io_debug_message( '<b>' . __FUNCTION__ . '()</b>' );
@@ -1100,6 +1206,20 @@ function s3io_table_count_pending() {
 function s3io_table_delete_pending() {
 	global $wpdb;
 	$wpdb->query( "DELETE from $wpdb->s3io_images WHERE image_size IS NULL" );
+}
+
+/**
+ * Removes an image from the s3io_images table.
+ *
+ * @param int $image_id The ID of the image to remove from the table.
+ * @return bool True if the image record was successfully removed, false otherwise.
+ */
+function s3io_table_delete_image( $image_id ) {
+	if ( empty( $image_id ) ) {
+		return false;
+	}
+	global $wpdb;
+	return $wpdb->delete( $wpdb->s3io_images, array( 'id' => (int) $image_id ) );
 }
 
 /**
@@ -1160,8 +1280,7 @@ function s3io_table_remove() {
 		echo '0';
 		die;
 	}
-	global $wpdb;
-	if ( $wpdb->delete( $wpdb->s3io_images, array( 'id' => (int) $_POST['s3io_image_id'] ) ) ) {
+	if ( s3io_table_delete_image( (int) $_POST['s3io_image_id'] ) ) {
 		echo '1';
 	}
 	die();
@@ -1989,6 +2108,21 @@ function s3io_get_args_from_url( $url ) {
 	}
 	s3io_debug_message( "failed to find $url" );
 	return false;
+}
+
+/**
+ * Trims the given 'needle' from the end of the 'haystack'.
+ *
+ * @param string $haystack The string to be modified if it contains needle.
+ * @param string $needle The string to remove if it is at the end of the haystack.
+ * @return string The haystack with needle removed from the end.
+ */
+function s3io_remove_from_end( $haystack, $needle ) {
+	$needle_length = strlen( $needle );
+	if ( substr( $haystack, -$needle_length ) === $needle ) {
+		return substr( $haystack, 0, -$needle_length );
+	}
+	return $haystack;
 }
 
 /**
