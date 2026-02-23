@@ -10,10 +10,13 @@
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
+
 /**
  * Implements wp-cli extension for bulk optimizing.
  */
 class S3IO_CLI extends WP_CLI_Command {
+	use S3IO\Utils;
+
 	/**
 	 * Bulk Optimize S3 Images
 	 *
@@ -86,15 +89,14 @@ class S3IO_CLI extends WP_CLI_Command {
 			WP_CLI::line( __( 'Scanning, this could take a while', 's3-image-optimizer' ) );
 			s3io_image_scan( $verbose );
 		}
-		global $s3io_errors;
-		if ( ! empty( $s3io_errors ) ) {
-			foreach ( $s3io_errors as $error_message ) {
+		if ( ! empty( s3io()->errors ) ) {
+			foreach ( s3io()->errors as $error_message ) {
 				WP_CLI::error( $error_message, false );
 			}
 			WP_CLI::halt( 1 );
 		}
 
-		$image_count = s3io_table_count_pending();
+		$image_count = $this->table_count_pending();
 		if ( ! $image_count ) {
 			WP_CLI::success( __( 'There is nothing left to optimize.', 's3-image-optimizer' ) );
 		} elseif ( empty( $assoc_args['noprompt'] ) ) {
@@ -113,7 +115,7 @@ class S3IO_CLI extends WP_CLI_Command {
 		$images_finished = 0;
 		$image_total     = $image_count;
 		while ( $image_count > 0 ) {
-			s3io_bulk_loop( true, $verbose );
+			s3io()->bulk->bulk_loop( true, $verbose );
 			--$image_count;
 			++$images_finished;
 			WP_CLI::line( __( 'Optimized:', 's3-image-optimizer' ) . " $images_finished / $image_total" );
@@ -121,11 +123,11 @@ class S3IO_CLI extends WP_CLI_Command {
 		}
 
 		// Just to make sure we cleared them all.
-		$image_count  = s3io_table_count_pending();
+		$image_count  = $this->table_count_pending();
 		$image_total += $image_count;
 		if ( $image_count > 0 ) {
 			while ( $image_count > 0 ) {
-				s3io_bulk_loop( true, $verbose );
+				s3io()->bulk->bulk_loop( true, $verbose );
 				--$image_count;
 				++$images_finished;
 				WP_CLI::line( __( 'Optimized:', 's3-image-optimizer' ) . " $images_finished / $image_total" );

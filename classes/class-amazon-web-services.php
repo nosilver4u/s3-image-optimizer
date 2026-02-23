@@ -13,6 +13,10 @@ use S3IO\Aws3\Aws\Sdk;
 
 use Exception;
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 /**
  * Gathers access keys and connects to AWS.
  */
@@ -210,5 +214,3 @@ class Amazon_Web_Services {
 		return false;
 	}
 }
-global $s3io_amazon_web_services;
-$s3io_amazon_web_services = new Amazon_Web_Services();
