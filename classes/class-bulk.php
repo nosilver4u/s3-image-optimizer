@@ -1228,8 +1228,9 @@ class Bulk extends Base {
 			);
 		}
 		if ( empty( $url ) || empty( $url_args ) ) {
-			$output['error'] = esc_html__( 'Invalid URL supplied', 's3-image-optimizer' );
-			wp_die( wp_json_encode( $output ) );
+			/* translators: %s: path to an image */
+			$output['results'] = '<p>' . sprintf( esc_html__( 'Image not found: %s', 's3-image-optimizer' ), '<strong>' . esc_html( $url ) . '</strong>' ) . '</p>';
+			die( wp_json_encode( $output ) );
 		}
 		$url_args['path'] = ltrim( $url_args['path'], '/' );
 
@@ -1477,30 +1478,27 @@ class Bulk extends Base {
 			$this->debug_message( 'unable to initialize AWS client lib' );
 			return false;
 		}
-		$key = ltrim( $urlinfo['path'], '/' );
 		foreach ( $bucket_list as $aws_bucket ) {
-			try {
-				$exists = $client->headObject(
-					array(
-						'Bucket' => $aws_bucket,
-						'Key'    => $key,
-					)
-				);
-			} catch ( AwsException | S3Exception | Exception $e ) {
-				$s3_error = $e->getMessage();
-				// Only throw an error if it isn't a 404 response, otherwise a 404 simply means we should keep looking.
-				if ( ! str_contains( $s3_error, '404 Not Found' ) ) {
-					s3io()->errors[] = $this->format_aws_exception( $s3_error );
-					$this->debug_message( "failed to get info for $aws_bucket / $key: $s3_error" );
+			if ( \str_contains( $urlinfo['host'], $aws_bucket ) ) {
+				$key = ltrim( $urlinfo['path'], '/' );
+				if ( $this->object_exists( $aws_bucket, $key, $client ) ) {
+					$this->debug_message( 'found ' . $aws_bucket . ' and ' . $urlinfo['path'] );
+					return array(
+						'bucket' => $aws_bucket,
+						'path'   => $urlinfo['path'],
+					);
 				}
-				return false;
 			}
-			if ( $exists ) {
-				$this->debug_message( 'found ' . $aws_bucket . ' and ' . $urlinfo['path'] );
-				return array(
-					'bucket' => $aws_bucket,
-					'path'   => $urlinfo['path'],
-				);
+			if ( \str_contains( $urlinfo['path'], $aws_bucket ) ) {
+				$path = str_replace( '/' . $aws_bucket, '', $urlinfo['path'] );
+				$key  = ltrim( $path, '/' );
+				if ( $this->object_exists( $aws_bucket, $key, $client ) ) {
+					$this->debug_message( 'found ' . $aws_bucket . ' and ' . $path );
+					return array(
+						'bucket' => $aws_bucket,
+						'path'   => $path,
+					);
+				}
 			}
 		}
 		$this->debug_message( "failed to find $url" );
