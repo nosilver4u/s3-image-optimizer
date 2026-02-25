@@ -76,8 +76,8 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 = 2.6.2 =
 * added: support for WebP naming mode in EWWW Image Optimizer
 * added: support for optimizing WebP image uploads
-* updated: AWS SDK to latest version
 * changed: AWS exception handling catches more errors and is more readable
+* updated: AWS SDK to latest version
 * fixed: uncaught PHP exception when checking ownership controls on older buckets where policy is not explicitly set
 * fixed: multiple strings missing i18n
 * fixed: undefined variables in exception handlers

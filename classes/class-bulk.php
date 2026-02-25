@@ -179,13 +179,13 @@ class Bulk extends Base {
 				continue;
 			}
 			$pending_path = $pending_image['path'];
-			if ( ! str_ends_with( $pending_path, '.webp' ) ) {
+			if ( ! \str_ends_with( $pending_path, '.webp' ) ) {
 				continue;
 			}
 			$webp_copy     = false;
 			$original_path = $this->remove_from_end( $pending_path, '.webp' );
-			$info          = pathinfo( $original_path );
-			$ext           = strtolower( $info['extension'] ?? '' );
+			$info          = \pathinfo( $original_path );
+			$ext           = \strtolower( $info['extension'] ?? '' );
 			$this->debug_message( "checking $pending_path if it is a .webp copy, possible original path is $original_path, ext: $ext" );
 			if ( empty( $ext ) || ! in_array( $ext, $original_extensions, true ) ) {
 				$this->debug_message( 'this is not an appended .webp copy, so checking for original image with extension replaced' );
@@ -277,10 +277,11 @@ class Bulk extends Base {
 			}
 			if ( is_wp_error( $location ) && ( ! defined( 'S3_IMAGE_OPTIMIZER_REGION' ) || ! S3_IMAGE_OPTIMIZER_REGION ) ) {
 				/* translators: 1: bucket name 2: AWS error message */
-				s3io()->errors[] = sprintf( esc_html__( 'Could not get bucket location for %1$s, error: %2$s. Will assume us-east-1 region for all buckets. You may set the region manually using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php.', 's3-image-optimizer' ), $bucket, wp_kses_post( $location->get_error_message() ) );
-				if ( ! $wpcli ) {
-					die( wp_json_encode( array( 'error' => s3io()->errors[0] ) ) );
+				$s3_error = \sprintf( \esc_html__( 'Could not get bucket location for %1$s, error: %2$s. You may set the region manually using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php.', 's3-image-optimizer' ), $bucket, wp_kses_post( $location->get_error_message() ) );
+				if ( $wpcli ) {
+					WP_CLI::error( $s3_error );
 				}
+				die( \wp_json_encode( array( 'error' => $s3_error ) ) );
 			}
 			$paginator_args = array( 'Bucket' => $bucket );
 			if ( defined( 'S3_IMAGE_OPTIMIZER_FOLDER' ) && S3_IMAGE_OPTIMIZER_FOLDER ) {
@@ -296,11 +297,12 @@ class Bulk extends Base {
 
 			$results = $client->getPaginator( 'ListObjects', $paginator_args );
 
-			$already_optimized = $wpdb->get_results( $wpdb->prepare( "SELECT path,image_size FROM $wpdb->s3io_images WHERE bucket LIKE %s", $bucket ), ARRAY_A );
+			$already_optimized = $wpdb->get_results( $wpdb->prepare( "SELECT id,path,image_size FROM $wpdb->s3io_images WHERE bucket LIKE %s", $bucket ), ARRAY_A );
 			$optimized_list    = array();
 			foreach ( $already_optimized as $optimized ) {
-				$optimized_path                    = $optimized['path'];
-				$optimized_list[ $optimized_path ] = (int) $optimized['image_size'];
+				$optimized_path                            = $optimized['path'];
+				$optimized_list[ $optimized_path ]['size'] = (int) $optimized['image_size'];
+				$optimized_list[ $optimized_path ]['id']   = (int) $optimized['id'];
 			}
 			if ( $this->stl_check() ) {
 				set_time_limit( 0 );
@@ -309,7 +311,8 @@ class Bulk extends Base {
 				foreach ( $results as $result ) {
 					foreach ( $result['Contents'] as $object ) {
 						++$scan_count;
-						$skip_optimized = false;
+						$skip_optimized = false; // Image already optimized, skip it.
+						$reset_pending  = false; // Image optimized, but size has changed, reset to pending.
 						$path           = $object['Key'];
 						$this->debug_message( "$scan_count: checking $path" );
 						if ( preg_match( '/\.(jpe?g|png|gif|webp)$/i', $path ) ) {
@@ -331,20 +334,29 @@ class Bulk extends Base {
 								}
 							}
 							$image_size = (int) $object['Size'];
-							if ( isset( $optimized_list[ $path ] ) && $optimized_list[ $path ] === $image_size ) {
+							if ( isset( $optimized_list[ $path ] ) && $optimized_list[ $path ]['size'] === $image_size ) {
 								$this->debug_message( 'size matches db, skipping' );
 								$skip_optimized = true;
+							} elseif ( isset( $optimized_list[ $path ] ) ) {
+								$this->debug_message( 'size does not match, set to pending' );
+								$reset_pending = $optimized_list[ $path ]['id'];
 							}
 						} else {
 							$this->debug_message( 'not an image, skipping' );
 							continue;
 						}
+						// We don't actually have a force option at this point.
+						// They have to remove records to force a re-opt.
 						if ( ! $skip_optimized || ! empty( $_REQUEST['s3io_force'] ) ) {
-							$images[ $path ] = array(
-								'bucket'    => $bucket,
-								'path'      => $path,
-								'orig_size' => $image_size,
-							);
+							if ( $reset_pending ) {
+								$this->table_set_pending( $reset_pending );
+							} else {
+								$images[ $path ] = array(
+									'bucket'    => $bucket,
+									'path'      => $path,
+									'orig_size' => $image_size,
+								);
+							}
 							if ( $verbose && $wpcli ) {
 								/* translators: 1: image name 2: S3 bucket name */
 								WP_CLI::line( sprintf( __( 'Queueing %1$s in %2$s.', 's3-image-optimizer' ), $path, $bucket ) );
@@ -394,10 +406,11 @@ class Bulk extends Base {
 				}
 			} catch ( AwsException | S3Exception | Exception $e ) {
 				/* translators: 1: bucket name 2: AWS error message */
-				s3io()->errors[] = sprintf( esc_html__( 'Incorrect region for %1$s, please set the region using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php. Error: %2$s.', 's3-image-optimizer' ), $bucket, wp_kses_post( $this->format_aws_exception( $e->getMessage() ) ) );
-				if ( ! $wpcli ) {
-					die( wp_json_encode( array( 'error' => s3io()->errors[0] ) ) );
+				$s3_error = sprintf( esc_html__( 'Error encountered while scanning %1$s. You may need to set the region using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php. Error: %2$s.', 's3-image-optimizer' ), $bucket, wp_kses_post( $this->format_aws_exception( $e->getMessage() ) ) );
+				if ( $wpcli ) {
+					WP_CLI::error( $s3_error );
 				}
+				die( wp_json_encode( array( 'error' => $s3_error ) ) );
 			}
 			$paginator = '';
 			update_option( 's3io_bucket_paginator', $paginator, false );
@@ -559,9 +572,7 @@ class Bulk extends Base {
 					}
 					?>
 				</p>
-		<?php
-		if ( empty( $s3io_resume ) && ! empty( $bucket_list ) ) {
-			?>
+		<?php if ( empty( $s3io_resume ) && ! empty( $bucket_list ) ) : ?>
 				<form id="s3io-scan" class="s3io-bulk-form" method="post" action="">
 					<input id="s3io-scan-button" type="submit" class="button-primary" value="<?php echo esc_attr( $button_text ); ?>" />
 				</form>
@@ -569,49 +580,43 @@ class Bulk extends Base {
 				<form id="s3io-start" class="s3io-bulk-form" style="display:none;" method="post" action="">
 					<input id="s3io-start-button" type="submit" class="button-primary" value="<?php echo esc_attr( $start_text ); ?>" />
 				</form>
-			<?php
-		}
-		if ( ! empty( $s3io_resume ) ) {
-			?>
-			<p id="s3io-found-images" class="s3io-bulk-info">
-				<?php
-				$pending = $this->table_count_pending();
-				/* translators: %d: number of images */
-				printf( esc_html__( 'There are %d images to be optimized.', 's3-image-optimizer' ), (int) $pending );
-				?>
-			</p>
-			<form id="s3io-start" class="s3io-bulk-form" method="post" action="">
-				<input id="s3io-start-button" type="submit" class="button-primary action" value="<?php echo esc_attr( $button_text ); ?>" />
-			</form>
-			<p class="s3io-bulk-info"><?php esc_html_e( 'Would you like to clear the queue and rescan for images?', 's3-image-optimizer' ); ?></p>
+		<?php endif; ?>
+		<?php if ( ! empty( $s3io_resume ) ) : ?>
+				<p id="s3io-found-images" class="s3io-bulk-info">
+					<?php
+					$pending = $this->table_count_pending();
+					/* translators: %d: number of images */
+					printf( esc_html__( 'There are %d images to be optimized.', 's3-image-optimizer' ), (int) $pending );
+					?>
+				</p>
+				<form id="s3io-start" class="s3io-bulk-form" method="post" action="">
+					<input id="s3io-start-button" type="submit" class="button-primary action" value="<?php echo esc_attr( $button_text ); ?>" />
+				</form>
+				<p class="s3io-bulk-info">
+					<?php esc_html_e( 'Would you like to clear the queue and rescan for images?', 's3-image-optimizer' ); ?>
+				</p>
 				<form id="s3io-bulk-reset" class="s3io-bulk-form" method="post" action="">
 					<?php wp_nonce_field( 's3io-bulk-reset', 's3io_wpnonce' ); ?>
 					<input type="hidden" name="s3io_reset_bulk" value="1">
 					<button type="submit" class="button-secondary action"><?php esc_html_e( 'Clear Queue', 's3-image-optimizer' ); ?></button>
 				</form>
-			<?php
-		}
-		if ( empty( $already_optimized ) ) {
-			$display = 'display:none';
-		} else {
-			$display = '';
-			?>
-				<p class="s3io-bulk-info" style="margin-top: 2.5em"><?php esc_html_e( 'Force a re-optimization of all images by erasing the optimization history. This cannot be undone, as it will remove all optimization records from the database.', 's3-image-optimizer' ); ?></p>
+		<?php endif; ?>
+		<?php if ( ! empty( $already_optimized ) ) : ?>
+				<p class="s3io-bulk-info" style="margin-top: 2.5em">
+					<?php esc_html_e( 'Force a re-optimization of all images by erasing the optimization history. This cannot be undone, as it will remove all optimization records from the database.', 's3-image-optimizer' ); ?>
+				</p>
 				<form id="s3io-force-empty" class="s3io-bulk-form" style="margin-bottom: 2.5em" method="post" action="">
 					<?php wp_nonce_field( 's3io-bulk-empty', 's3io_wpnonce' ); ?>
 					<input type="hidden" name="s3io_force_empty" value="1">
 					<button type="submit" class="button-secondary action"><?php esc_html_e( 'Erase Optimization History', 's3-image-optimizer' ); ?></button>
 				</form>
-				<?php
-		}
-		?>
-				<p id="s3io-table-info" class="s3io-bulk-info" style="<?php echo esc_attr( $display ); ?>">
-				<?php
-				/* translators: %d: number of images */
-				printf( esc_html__( 'The optimizer keeps track of already optimized images to prevent re-optimization. There are %d images that have been optimized so far.', 's3-image-optimizer' ), (int) $already_optimized );
-				?>
+				<p id="s3io-table-info" class="s3io-bulk-info">
+					<?php
+					/* translators: %d: number of images */
+					printf( esc_html__( 'The optimizer keeps track of already optimized images to prevent re-optimization. There are %d images that have been optimized so far.', 's3-image-optimizer' ), (int) $already_optimized );
+					?>
 				</p>
-				<form id="s3io-show-table" class="s3io-bulk-form" method="post" action="" style="<?php echo esc_attr( $display ); ?>">
+				<form id="s3io-show-table" class="s3io-bulk-form" method="post" action="">
 					<button type="submit" class="button-secondary action"><?php esc_html_e( 'Show Optimized Images', 's3-image-optimizer' ); ?></button>
 				</form>
 				<div class="tablenav s3io-aux-table" style="display:none">
@@ -629,8 +634,9 @@ class Bulk extends Base {
 				</div>
 				<div id="s3io-bulk-table" class="s3io-table"></div>
 				<span id="s3io-pointer" style="display:none">0</span>
-			</div>
-		</div>
+		<?php endif; ?>
+			</div><!-- end #s3io-bulk-forms -->
+		</div><!-- end .wrap -->
 		<?php
 	}
 
@@ -1019,7 +1025,6 @@ class Bulk extends Base {
 						'SourceFile'   => $filename,
 						'ContentType'  => $fetch_result['ContentType'],
 						'CacheControl' => 'max-age=31536000',
-						'Expires'      => gmdate( 'D, d M Y H:i:s O', time() + 31536000 ),
 					)
 				);
 				if ( ! $ownership_control_enforced ) {
@@ -1079,7 +1084,6 @@ class Bulk extends Base {
 						'SourceFile'   => $webp_filename,
 						'ContentType'  => 'image/webp',
 						'CacheControl' => 'max-age=31536000',
-						'Expires'      => gmdate( 'D, d M Y H:i:s O', time() + 31536000 ),
 					)
 				);
 				if ( ! $ownership_control_enforced ) {
@@ -1134,7 +1138,7 @@ class Bulk extends Base {
 			// Output the path.
 			$output['results'] = '<p>';
 			/* translators: %s: path to an image */
-			$output['results'] .= sprintf( esc_html__( 'Optimized image: %s', 's3-image-optimizer' ), '<strong>' . esc_html( $image_record['path'] ) . '</strong>' ) . '<br>';
+			$output['results'] .= sprintf( esc_html__( 'Optimized image: %s', 's3-image-optimizer' ), '<strong>' . esc_html( $image_record['bucket'] . '/' . $image_record['path'] ) . '</strong>' ) . '<br>';
 			$output['results'] .= wp_kses_post( $results[1] ) . '<br>';
 			// Calculate how much time has elapsed since we started.
 			$elapsed = microtime( true ) - $started;
@@ -1148,7 +1152,7 @@ class Bulk extends Base {
 			if ( ! empty( $image_record ) ) {
 				$loading_image = plugins_url( '/wpspin.gif', S3IO_PLUGIN_FILE );
 				/* translators: %s: path to an image */
-				$output['next_file'] = '<p>' . sprintf( esc_html__( 'Optimizing %s', 's3-image-optimizer' ), '<b>' . esc_html( $image_record['path'] ) . '</b>' ) . "&nbsp;<img src='$loading_image' alt='loading'/></p>";
+				$output['next_file'] = '<p>' . sprintf( esc_html__( 'Optimizing %s', 's3-image-optimizer' ), '<b>' . esc_html( $image_record['bucket'] . '/' . $image_record['path'] ) . '</b>' ) . "&nbsp;<img src='$loading_image' alt='loading'/></p>";
 			}
 			die( wp_json_encode( $output ) );
 		} elseif ( defined( 'WP_CLI' ) && WP_CLI ) {
@@ -1283,21 +1287,25 @@ class Bulk extends Base {
 			$s3_error = $e->getMessage();
 			$this->debug_message( "failed to fetch $filename: $s3_error" );
 			if ( \str_contains( $s3_error, '404 Not Found' ) ) {
-				$s3_error = __( 'File not found.', 's3-image-optimizer' );
-			}
-			wp_die(
-				wp_json_encode(
-					array(
-						'error' => sprintf(
-							/* translators: 1: bucket name, 2: path to file, 3: error message */
-							esc_html__( 'Fetch failed for bucket: %1$s, path: %2$s, message: %3$s', 's3-image-optimizer' ),
-							esc_html( $url_args['bucket'] ),
-							esc_html( $url_args['path'] ),
-							wp_kses_post( $this->format_aws_exception( $s3_error ) )
-						),
+				$output['results'] = '<p>';
+				/* translators: %s: path to an image */
+				$output['results'] .= sprintf( esc_html__( 'Image not found: %s', 's3-image-optimizer' ), '<strong>' . esc_html( $url_args['bucket'] . '/' . $url_args['path'] ) . '</strong>' ) . '</p>';
+				die( wp_json_encode( $output ) );
+			} else {
+				wp_die(
+					wp_json_encode(
+						array(
+							'error' => sprintf(
+								/* translators: 1: bucket name, 2: path to file, 3: error message */
+								esc_html__( 'Fetch failed for bucket: %1$s, path: %2$s, message: %3$s', 's3-image-optimizer' ),
+								esc_html( $url_args['bucket'] ),
+								esc_html( $url_args['path'] ),
+								wp_kses_post( $this->format_aws_exception( $s3_error ) )
+							),
+						)
 					)
-				)
-			);
+				);
+			}
 		}
 		// Make sure EWWW IO doesn't skip images.
 		ewwwio()->force = true;
@@ -1324,7 +1332,6 @@ class Bulk extends Base {
 						'SourceFile'   => $filename,
 						'ContentType'  => $fetch_result['ContentType'],
 						'CacheControl' => 'max-age=31536000',
-						'Expires'      => gmdate( 'D, d M Y H:i:s O', time() + 31536000 ),
 					)
 				);
 				if ( ! $ownership_control_enforced ) {
@@ -1361,7 +1368,6 @@ class Bulk extends Base {
 						'SourceFile'   => $webp_filename,
 						'ContentType'  => 'image/webp',
 						'CacheControl' => 'max-age=31536000',
-						'Expires'      => gmdate( 'D, d M Y H:i:s O', time() + 31536000 ),
 					)
 				);
 				if ( ! $ownership_control_enforced ) {
@@ -1396,7 +1402,7 @@ class Bulk extends Base {
 		$elapsed           = microtime( true ) - $started;
 		$output['results'] = '<p>';
 		/* translators: %s: path to an image */
-		$output['results'] .= sprintf( esc_html__( 'Optimized image: %s', 's3-image-optimizer' ), '<strong>' . esc_html( $url_args['path'] ) . '</strong>' ) . '<br>';
+		$output['results'] .= sprintf( esc_html__( 'Optimized image: %s', 's3-image-optimizer' ), '<strong>' . esc_html( $url_args['bucket'] . '/' . $url_args['path'] ) . '</strong>' ) . '<br>';
 		$output['results'] .= wp_kses_post( $results[1] ) . '<br>';
 		/* translators: %s: time in seconds */
 		$output['results'] .= sprintf( esc_html__( 'Elapsed: %s seconds', 's3-image-optimizer' ), number_format_i18n( $elapsed, 1 ) ) . '</p>';
@@ -1482,11 +1488,11 @@ class Bulk extends Base {
 				);
 			} catch ( AwsException | S3Exception | Exception $e ) {
 				$s3_error = $e->getMessage();
-				if ( str_contains( $s3_error, '404 Not Found' ) ) {
-					$s3_error = __( 'File not found.', 's3-image-optimizer' );
+				// Only throw an error if it isn't a 404 response, otherwise a 404 simply means we should keep looking.
+				if ( ! str_contains( $s3_error, '404 Not Found' ) ) {
+					s3io()->errors[] = $this->format_aws_exception( $s3_error );
+					$this->debug_message( "failed to get info for $aws_bucket / $key: $s3_error" );
 				}
-				s3io()->errors[] = $this->format_aws_exception( $s3_error );
-				$this->debug_message( "failed to get info for $aws_bucket / $key: $s3_error" );
 				return false;
 			}
 			if ( $exists ) {

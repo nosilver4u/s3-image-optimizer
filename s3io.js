@@ -21,7 +21,7 @@ jQuery(document).ready(function($) {
 	var s3io_loop_action = 's3io_bulk_loop';
 	var s3io_cleanup_action = 's3io_bulk_cleanup';
 	var s3io_init_data = {
-	        action: s3io_init_action,
+		action: s3io_init_action,
 		s3io_wpnonce: s3io_vars._wpnonce,
 	};
 	var s3io_table_action = 's3io_query_table';
@@ -100,7 +100,7 @@ jQuery(document).ready(function($) {
 					$('#s3io-bulk-stop').hide();
 				}
 			}
-	        })
+	    })
 		.fail(function() {
 			$('#s3io-bulk-loading').html('<p style="color: red"><b>' + s3io_vars.operation_interrupted + '</b></p>');
 		});
@@ -392,6 +392,68 @@ jQuery(document).ready(function($) {
 				s3io_error_counter--;
 				setTimeout(function() {
 					s3ioProcessImage();
+				}, 1000);
+			}
+		});
+	}
+	$('#s3io-webp-rename').submit(function() {
+		$('.s3io-tool-form').hide();
+		$('.s3io-tool-info').hide();
+		$('#s3io-tools-loading').show();
+		$('#s3io-tools-counter').show();
+		$('#s3io-tools-status').show();
+		s3ioRenameWebPImages();
+		return false;
+	});
+	var s3io_webp_rename_completed = 0;
+	function s3ioRenameWebPImages() {
+		var s3io_webp_rename_data = {
+			action: 's3io_webp_rename_loop',
+			completed: s3io_webp_rename_completed,
+			s3io_wpnonce: s3io_vars._wpnonce,
+		};
+		$.post(ajaxurl, s3io_webp_rename_data, function(response) {
+			try {
+				var s3io_response = JSON.parse(response);
+			} catch (err) {
+				$('#s3io-tools-loading').html('<p style="color: red"><b>' + s3io_vars.invalid_response + '</b></p>');
+				console.log(err);
+				console.log(response);
+				return false;
+			}
+			if (s3io_response.error) {
+				$('#s3io-tools-loading').html('<p style="color: red"><b>' + s3io_response.error + '</b></p>');
+				return false;
+			} else if (s3io_response.counter_msg) {
+				// A valid response will have 'output', a 'counter_msg' to show how many images have been completed,
+				// and 'completed' with a count of how many images were done in the current request.
+				s3io_webp_rename_completed += s3io_response.completed;
+				$('#s3io-tools-counter').html(s3io_response.counter_msg);
+				$('#s3io-tools-status').append('<p>' + s3io_response.output + '</p>');
+				if (s3io_response.new_nonce) {
+					s3io_vars._wpnonce = s3io_response.new_nonce;
+				}
+				s3io_error_counter = 30;
+				// Keep going until a loop comes back with done = 1.
+				if (s3io_response.done > 0) {
+					$('#s3io-tools-loading').html(s3io_vars.finished);
+				} else {
+					s3ioRenameWebPImages();
+				}
+			} else {
+				$('#s3io-tools-loading').html('<p style="color: red"><b>' + s3io_vars.invalid_response + '</b></p>');
+				console.log(err);
+				console.log(response);
+			}
+		})
+		.fail(function() {
+			if (s3io_error_counter == 0) {
+				$('#s3io-tools-loading').html('<p style="color: red"><b>' + s3io_vars.operation_interrupted + '</b></p>');
+			} else {
+				$('#s3io-tools-loading').html('<p style="color: red"><b>' + s3io_vars.temporary_failure + ' ' + s3io_error_counter + '</b></p>');
+				s3io_error_counter--;
+				setTimeout(function() {
+					s3ioRenameWebPImages();
 				}, 1000);
 			}
 		});

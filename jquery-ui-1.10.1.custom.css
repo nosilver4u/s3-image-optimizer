@@ -408,3 +408,7 @@ button.s3io-handlediv {
 .js .postbox.closed .s3io-handlediv .toggle-indicator:before {
 	content: "\f140";
 }
+/* For the Tools page */
+#s3io-tools-loading, #s3io-tools-counter, #s3io-tools-status p {
+	margin: 10px 0;
+}
