@@ -75,6 +75,7 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 
 = 2.6.2 =
 * added: support for WebP naming mode in EWWW Image Optimizer
+* added: utility for migrating between WebP naming modes
 * added: support for optimizing WebP image uploads
 * improve: optimize by URL handles path-style URLs and 404 errors better
 * changed: AWS exception handling catches more errors and is more readable
@@ -83,6 +84,8 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 * fixed: uncaught PHP exception when checking ownership controls on older buckets where policy is not explicitly set
 * fixed: multiple strings missing i18n
 * fixed: undefined variables in exception handlers
+* fixed: some strings missing i18n
+* security: missing some capability checks
 
 = 2.6.1 =
 * added: override auto-detected object ownership enforcement via S3IO_OBJECT_OWNERSHIP_ENFORCED constant or s3io_object_ownership_enforced filter: set either to true to disable per-object acls

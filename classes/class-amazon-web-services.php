@@ -9,9 +9,8 @@
 
 namespace S3IO;
 
-use S3IO\Aws3\Aws\Sdk;
-
 use Exception;
+use S3IO\Aws3\Aws\Sdk;
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
@@ -168,11 +167,11 @@ class Amazon_Web_Services {
 	 * using the defined AWS key and secret
 	 *
 	 * @return Aws An AWS object with an established connection.
-	 * @throws \Exception AWS configuration/connection error.
+	 * @throws Exception AWS configuration/connection error.
 	 */
 	public function get_client() {
 		if ( $this->needs_access_keys() ) {
-			throw new \Exception( esc_html__( 'You must first set your AWS access keys to use S3 Image Optimizer.', 's3-image-optimizer' ) );
+			throw new Exception( esc_html__( 'You must first set your AWS access keys to use S3 Image Optimizer.', 's3-image-optimizer' ) );
 		}
 
 		if ( is_null( $this->client ) ) {

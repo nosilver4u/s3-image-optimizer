@@ -15,7 +15,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Implements wp-cli extension for bulk optimizing.
  */
 class S3IO_CLI extends WP_CLI_Command {
-	use S3IO\Utils;
 
 	/**
 	 * Bulk Optimize S3 Images
@@ -65,7 +64,7 @@ class S3IO_CLI extends WP_CLI_Command {
 		// check to see if the user has asked to reset (empty) the optimized images table.
 		if ( ! empty( $assoc_args['force'] ) ) {
 			WP_CLI::line( __( 'Forcing re-optimization of previously processed images.', 's3-image-optimizer' ) );
-			s3io_table_truncate();
+			s3io()->table_truncate();
 		}
 
 		/* translators: %d: number of seconds */
@@ -85,9 +84,9 @@ class S3IO_CLI extends WP_CLI_Command {
 		$verbose = ( empty( $assoc_args['verbose'] ) ? false : true );
 
 		if ( empty( $resume ) ) {
-			s3io_table_delete_pending();
+			s3io()->table_delete_pending();
 			WP_CLI::line( __( 'Scanning, this could take a while', 's3-image-optimizer' ) );
-			s3io_image_scan( $verbose );
+			s3io()->bulk->image_scan( $verbose );
 		}
 		if ( ! empty( s3io()->errors ) ) {
 			foreach ( s3io()->errors as $error_message ) {
@@ -96,7 +95,7 @@ class S3IO_CLI extends WP_CLI_Command {
 			WP_CLI::halt( 1 );
 		}
 
-		$image_count = $this->table_count_pending();
+		$image_count = s3io()->table_count_pending();
 		if ( ! $image_count ) {
 			WP_CLI::success( __( 'There is nothing left to optimize.', 's3-image-optimizer' ) );
 		} elseif ( empty( $assoc_args['noprompt'] ) ) {
@@ -123,7 +122,7 @@ class S3IO_CLI extends WP_CLI_Command {
 		}
 
 		// Just to make sure we cleared them all.
-		$image_count  = $this->table_count_pending();
+		$image_count  = s3io()->table_count_pending();
 		$image_total += $image_count;
 		if ( $image_count > 0 ) {
 			while ( $image_count > 0 ) {
@@ -139,6 +138,50 @@ class S3IO_CLI extends WP_CLI_Command {
 			// and let the user know we are done.
 			WP_CLI::success( __( 'Finished Optimization!', 's3-image-optimizer' ) );
 		}
+	}
+
+	/**
+	 * Rename WebP Images in S3 buckets
+	 *
+	 * Changes .webp image naming to conform with current naming mode in EWWW Image Optimizer.
+	 * This setting may either append the .webp extension, like 'image.jpg.webp' or replace
+	 * the original extension, like 'image.webp'.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <reset>
+	 * : optional, start over instead of resuming from last position
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp-cli s3io webp_rename --reset
+	 *
+	 * @synopsis [--reset]
+	 *
+	 * @param array $args A numbered array of arguments provided via WP-CLI without option names.
+	 * @param array $assoc_args An array of named arguments provided via WP-CLI.
+	 */
+	public function webp_rename( $args, $assoc_args ) {
+
+		// because NextGEN hasn't flushed it's buffers...
+		while ( @ob_end_flush() ); // phpcs:ignore
+
+		if ( ! empty( $assoc_args['reset'] ) ) {
+			\update_option( 's3io_webp_rename_resume', '', false );
+			\update_option( 's3io_webp_delete_resume', '', false );
+			\update_option( 's3io_bucket_paginator', '', false );
+			\update_option( 's3io_buckets_scanned', '', false );
+			WP_CLI::line( __( 'Renaming process has been reset, starting from the beginning.', 's3-image-optimizer' ) );
+		}
+
+		$naming_mode = \ewwwio()->get_option( 'ewww_image_optimizer_webp_naming_mode', 'append' );
+		if ( 'append' === $naming_mode ) {
+			WP_CLI::line( __( 'Renaming WebP images, from replace mode to append mode.', 's3-image-optimizer' ) );
+		} else {
+			WP_CLI::line( __( 'Renaming WebP images, from append mode to replace mode.', 's3-image-optimizer' ) );
+		}
+
+		s3io()->tools->webp_rename_loop();
 	}
 }
 

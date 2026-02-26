@@ -22,7 +22,7 @@ class Base {
 	 * @access protected
 	 * @var string $content_url
 	 */
-	protected $content_url = WP_CONTENT_URL . 's3io/';
+	protected $content_url = \WP_CONTENT_URL . 's3io/';
 
 	/**
 	 * Content directory (path) for the plugin to use.
@@ -30,7 +30,7 @@ class Base {
 	 * @access protected
 	 * @var string $content_dir
 	 */
-	protected $content_dir = WP_CONTENT_DIR . '/s3io/';
+	protected $content_dir = \WP_CONTENT_DIR . '/s3io/';
 
 	/**
 	 * Plugin version (placeholder) for the plugin.
@@ -52,7 +52,7 @@ class Base {
 	 * Set class properties for children.
 	 */
 	public function __construct() {
-		$this->version = S3IO_VERSION;
+		$this->version = \S3IO_VERSION;
 	}
 
 	/**
@@ -61,11 +61,11 @@ class Base {
 	 * @param string $message Debug information to add to the log.
 	 */
 	public function debug_message( $message ) {
-		if ( defined( 'WP_CLI' ) && WP_CLI ) {
-			WP_CLI::debug( $message );
+		if ( \defined( 'WP_CLI' ) && \WP_CLI ) {
+			\WP_CLI::debug( $message );
 			return;
 		}
-		if ( function_exists( 'ewwwio' ) ) {
+		if ( \function_exists( 'ewwwio' ) ) {
 			\ewwwio()->debug_message( $message );
 		}
 	}

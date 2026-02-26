@@ -7,6 +7,7 @@
 
 namespace S3IO;
 
+use Exception;
 use S3IO\Aws3\Aws\Exception\AwsException;
 use S3IO\Aws3\Aws\S3\Exception\S3Exception;
 
@@ -50,20 +51,20 @@ trait Utils {
 	 * @return string The background color in hex notation.
 	 */
 	protected function admin_background() {
-		if ( ! empty( $this->admin_color ) && preg_match( '/^\#([0-9a-fA-F]){3,6}$/', $this->admin_color ) ) {
+		if ( ! empty( $this->admin_color ) && \preg_match( '/^\#([0-9a-fA-F]){3,6}$/', $this->admin_color ) ) {
 			return $this->admin_color;
 		}
 		if ( \function_exists( 'wp_add_inline_style' ) ) {
 			$user_info = \wp_get_current_user();
 			global $_wp_admin_css_colors;
 			if (
-				is_array( $_wp_admin_css_colors ) &&
+				\is_array( $_wp_admin_css_colors ) &&
 				! empty( $user_info->admin_color ) &&
 				isset( $_wp_admin_css_colors[ $user_info->admin_color ] ) &&
-				is_object( $_wp_admin_css_colors[ $user_info->admin_color ] ) &&
-				is_array( $_wp_admin_css_colors[ $user_info->admin_color ]->colors ) &&
+				\is_object( $_wp_admin_css_colors[ $user_info->admin_color ] ) &&
+				\is_array( $_wp_admin_css_colors[ $user_info->admin_color ]->colors ) &&
 				! empty( $_wp_admin_css_colors[ $user_info->admin_color ]->colors[2] ) &&
-				preg_match( '/^\#([0-9a-fA-F]){3,6}$/', $_wp_admin_css_colors[ $user_info->admin_color ]->colors[2] )
+				\preg_match( '/^\#([0-9a-fA-F]){3,6}$/', $_wp_admin_css_colors[ $user_info->admin_color ]->colors[2] )
 			) {
 				$this->admin_color = $_wp_admin_css_colors[ $user_info->admin_color ]->colors[2];
 				return $this->admin_color;
@@ -97,7 +98,7 @@ trait Utils {
 	 * @return bool True if the variable is iterable and not empty.
 	 */
 	protected function is_iterable( $value ) {
-		return ! empty( $value ) && is_iterable( $value );
+		return ! empty( $value ) && \is_iterable( $value );
 	}
 
 	/**
@@ -136,21 +137,21 @@ trait Utils {
 	 * Alert the user if the s3io folder could not be created within the uploads folder.
 	 */
 	public function make_upload_dir_remote_error() {
-		echo "<div id='s3io-error-mkdir' class='error'><p>" . esc_html__( 'Unable to create the /s3io/ working directory: could not determine local upload directory path.', 's3-image-optimizer' ) . '</p></div>';
+		echo "<div id='s3io-error-mkdir' class='error'><p>" . \esc_html__( 'Unable to create the /s3io/ working directory: could not determine local upload directory path.', 's3-image-optimizer' ) . '</p></div>';
 	}
 
 	/**
 	 * Alert the user if the s3io folder could not be created within the uploads folder.
 	 */
 	public function make_upload_dir_failed() {
-		echo "<div id='s3io-error-mkdir' class='error'><p>" . esc_html__( 'Could not create the /s3io/ folder within the WordPress uploads folder, please adjust the permissions and try again.', 's3-image-optimizer' ) . '</p></div>';
+		echo "<div id='s3io-error-mkdir' class='error'><p>" . \esc_html__( 'Could not create the /s3io/ folder within the WordPress uploads folder, please adjust the permissions and try again.', 's3-image-optimizer' ) . '</p></div>';
 	}
 
 	/**
 	 * Alert the user if the s3io folder is not writable.
 	 */
 	public function make_upload_dir_write_error() {
-		echo "<div id='s3io-error-mkdir' class='error'><p>" . esc_html__( 'The /s3io/ working directory is not writable, please check permissions for the WordPress uploads folder and /s3io/ sub-folder.', 's3-image-optimizer' ) . '</p></div>';
+		echo "<div id='s3io-error-mkdir' class='error'><p>" . \esc_html__( 'The /s3io/ working directory is not writable, please check permissions for the WordPress uploads folder and /s3io/ sub-folder.', 's3-image-optimizer' ) . '</p></div>';
 	}
 
 	/**
@@ -161,35 +162,33 @@ trait Utils {
 	public function make_upload_dir() {
 		$this->debug_message( '<b>' . __METHOD__ . '()</b>' );
 		// Unlook S3 Uploads from upload_dir.
-		if ( class_exists( 'S3_Uploads' ) || class_exists( 'S3_Uploads\Plugin' ) ) {
+		if ( \class_exists( '\S3_Uploads' ) || \class_exists( '\S3_Uploads\Plugin' ) ) {
 			$this->debug_message( 'S3_Uploads detected, removing upload_dir filters' );
-			remove_all_filters( 'upload_dir' );
+			\remove_all_filters( 'upload_dir' );
 		}
-		$upload_dir = wp_upload_dir( null, false, true );
-		if ( false !== strpos( $upload_dir['basedir'], 's3://' ) ) {
+		$upload_dir = \wp_upload_dir( null, false, true );
+		if ( false !== \strpos( $upload_dir['basedir'], 's3://' ) ) {
 			$this->debug_message( "upload_dir has an s3 prefix: {$upload_dir['basedir']}" );
-			add_action( 'admin_notices', array( $this, 'make_upload_dir_remote_error' ) );
-			return trailingslashit( $upload_dir['basedir'] ) . 's3io/';
+			\add_action( 'admin_notices', array( $this, 'make_upload_dir_remote_error' ) );
+			return \trailingslashit( $upload_dir['basedir'] ) . 's3io/';
 		}
-		if ( ! is_writable( $upload_dir['basedir'] ) ) {
+		if ( ! \is_writable( $upload_dir['basedir'] ) ) {
 			$this->debug_message( 'upload_dir is not writable' );
-			add_action( 'admin_notices', array( $this, 'make_upload_dir_failed' ) );
+			\add_action( 'admin_notices', array( $this, 'make_upload_dir_failed' ) );
 			return false;
 		}
-		$upload_dir = trailingslashit( $upload_dir['basedir'] ) . 's3io/';
-		if ( ! is_dir( $upload_dir ) ) {
-			$mkdir = wp_mkdir_p( $upload_dir );
+		$upload_dir = \trailingslashit( $upload_dir['basedir'] ) . 's3io/';
+		if ( ! \is_dir( $upload_dir ) ) {
+			$mkdir = \wp_mkdir_p( $upload_dir );
 			if ( ! $mkdir ) {
 				$this->debug_message( 'could not create /s3io/ working dir' );
-				add_action( 'admin_notices', 's3io_make_upload_dir_failed' );
-				add_action( 'admin_notices', array( $this, 'make_upload_dir_failed' ) );
+				\add_action( 'admin_notices', array( $this, 'make_upload_dir_failed' ) );
 				return false;
 			}
 		}
 		if ( ! is_writable( $upload_dir ) ) {
 			$this->debug_message( "$upload_dir is not writable" );
-			add_action( 'admin_notices', 's3io_make_upload_dir_write_error' );
-			add_action( 'admin_notices', array( $this, 'make_upload_dir_write_error' ) );
+			\add_action( 'admin_notices', array( $this, 'make_upload_dir_write_error' ) );
 			return false;
 		}
 		$this->debug_message( "using $upload_dir as working dir" );
@@ -202,17 +201,17 @@ trait Utils {
 	 * @return array A list of bucket names.
 	 */
 	protected function get_selected_buckets() {
-		if ( defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && S3_IMAGE_OPTIMIZER_BUCKET ) {
-			$bucket_list = array( S3_IMAGE_OPTIMIZER_BUCKET );
+		if ( \defined( 'S3_IMAGE_OPTIMIZER_BUCKET' ) && \S3_IMAGE_OPTIMIZER_BUCKET ) {
+			$bucket_list = array( \S3_IMAGE_OPTIMIZER_BUCKET );
 		} else {
-			$bucket_list = get_option( 's3io_bucketlist' );
+			$bucket_list = \get_option( 's3io_bucketlist' );
 		}
 		if ( empty( $bucket_list ) ) {
 			$bucket_list = array();
 			try {
-				$client = s3io()->amazon_web_services->get_client();
+				$client = \s3io()->amazon_web_services->get_client();
 			} catch ( AwsException | S3Exception | Exception $e ) {
-				s3io()->errors[] = $this->format_aws_exception( $e->getMessage() );
+				\s3io()->errors[] = $this->format_aws_exception( $e->getMessage() );
 				return $bucket_list;
 			}
 			try {
@@ -222,7 +221,7 @@ trait Utils {
 			}
 			if ( is_wp_error( $buckets ) ) {
 				/* translators: %s: AWS error message */
-				s3io()->errors[] = sprintf( esc_html__( 'Could not list buckets: %s', 's3-image-optimizer' ), wp_kses_post( $buckets->get_error_message() ) );
+				\s3io()->errors[] = \sprintf( \esc_html__( 'Could not list buckets: %s', 's3-image-optimizer' ), \wp_kses_post( $buckets->get_error_message() ) );
 			} else {
 				foreach ( $buckets['Buckets'] as $aws_bucket ) {
 					$bucket_list[] = $aws_bucket['Name'];
@@ -241,20 +240,20 @@ trait Utils {
 	public function object_ownership_enforced( $bucket ) {
 		$this->debug_message( '<b>' . __METHOD__ . '()</b>' );
 		$enforced = false;
-		if ( defined( 'S3IO_OBJECT_OWNERSHIP_ENFORCED' ) ) {
-			return S3IO_OBJECT_OWNERSHIP_ENFORCED;
+		if ( \defined( 'S3IO_OBJECT_OWNERSHIP_ENFORCED' ) ) {
+			return \S3IO_OBJECT_OWNERSHIP_ENFORCED;
 		}
 		if ( empty( $bucket ) ) {
 			$this->debug_message( 'no bucket?' );
 		}
 		$this->debug_message( "checking object ownership policy for $bucket" );
 		try {
-			$client = s3io()->amazon_web_services->get_client();
+			$client = \s3io()->amazon_web_services->get_client();
 		} catch ( AwsException | S3Exception | Exception $e ) {
 			$this->debug_message( 'unable to initialize AWS client lib: ' . $e->getMessage() );
 			$client = false;
 		}
-		if ( $client && is_object( $client ) ) {
+		if ( $client && \is_object( $client ) ) {
 			try {
 				$s3result       = $client->getBucketOwnershipControls( array( 'Bucket' => $bucket ) );
 				$owner_controls = $s3result->get( 'OwnershipControls' );
@@ -284,11 +283,11 @@ trait Utils {
 				}
 			}
 		}
-		if ( empty( $client ) || ! is_object( $client ) ) {
+		if ( empty( $client ) || ! \is_object( $client ) ) {
 			try {
-				$client = s3io()->amazon_web_services->get_client();
+				$client = \s3io()->amazon_web_services->get_client();
 			} catch ( AwsException | S3Exception | Exception $e ) {
-				s3io()->errors[] = $this->format_aws_exception( $e->getMessage() );
+				\s3io()->errors[] = $this->format_aws_exception( $e->getMessage() );
 				$this->debug_message( 'unable to initialize AWS client lib' );
 				return false;
 			}
@@ -305,8 +304,8 @@ trait Utils {
 			}
 		} catch ( AwsException | S3Exception | Exception $e ) {
 			$s3_error = $e->getMessage();
-			if ( ! str_contains( $s3_error, '404 Not Found' ) ) {
-				s3io()->errors[] = $this->format_aws_exception( $s3_error );
+			if ( ! \str_contains( $s3_error, '404 Not Found' ) ) {
+				\s3io()->errors[] = $this->format_aws_exception( $s3_error );
 				$this->debug_message( "failed to get info for $bucket / $key: $s3_error" );
 			}
 		}
@@ -320,7 +319,7 @@ trait Utils {
 	 * @return string The error message with linebreaks added for clarity.
 	 */
 	protected function format_aws_exception( $aws_exception ) {
-		if ( ! \defined( 'WP_CLI' ) || ! WP_CLI ) {
+		if ( ! \defined( 'WP_CLI' ) || ! \WP_CLI ) {
 			$aws_exception = str_replace( "\n", '<br>', $aws_exception );
 		}
 		return $aws_exception;
@@ -334,29 +333,56 @@ trait Utils {
 	 * @return string An empty string if WP CLI is in use, unaltered $output otherwise.
 	 */
 	protected function flush_output_to_cli( $output, $level = 'info' ) {
-		if ( ! empty( $output ) && \defined( 'WP_CLI' ) && WP_CLI ) {
+		if ( ! empty( $output ) && \defined( 'WP_CLI' ) && \WP_CLI ) {
 			$cli_output = array();
-			if ( is_string( $output ) ) {
+			if ( \is_string( $output ) ) {
 				$cli_output = \explode( '<br>', $output );
 				$output     = '';
-			} elseif ( is_array( $output ) ) {
+			} elseif ( \is_array( $output ) ) {
 				$cli_output = $output;
 				$output     = array();
 			}
 			if ( ! empty( $cli_output ) ) {
 				foreach ( $cli_output as $cli_message ) {
-					$cli_message = htmlspecialchars_decode( $cli_message );
+					$cli_message = \htmlspecialchars_decode( $cli_message );
 					if ( 'error' === $level ) {
-						WP_CLI::error( $cli_message );
+						\WP_CLI::error( $cli_message );
 					} elseif ( 'warning' === $level ) {
-						WP_CLI::warning( $cli_message );
+						\WP_CLI::warning( $cli_message );
 					} else {
-						WP_CLI::line( $cli_message );
+						\WP_CLI::line( $cli_message );
 					}
 				}
 			}
 		}
 		return $output;
+	}
+
+	/**
+	 * Creates a human-readable message based on the original and optimized sizes.
+	 *
+	 * @param int $orig_size The original size of the image.
+	 * @param int $opt_size The new size of the image.
+	 * @return string A message with the percentage and size savings.
+	 */
+	protected function get_results_msg( $orig_size, $opt_size ) {
+		if ( $opt_size >= $orig_size ) {
+			$results_msg = \__( 'No savings', 's3-image-optimizer' );
+		} else {
+			// Calculate how much space was saved.
+			$savings     = \intval( $orig_size ) - \intval( $opt_size );
+			$savings_str = $this->size_format( $savings );
+			// Determine the percentage savings.
+			$percent = \number_format_i18n( 100 - ( 100 * ( $opt_size / $orig_size ) ), 1 ) . '%';
+			// Use the percentage and the savings size to output a nice message to the user.
+			$results_msg = \sprintf(
+				/* translators: 1: Size of savings in bytes, kb, mb 2: Percentage savings */
+				\__( 'Reduced by %1$s (%2$s)', 's3-image-optimizer' ),
+				$percent,
+				$savings_str
+			);
+		}
+		return $results_msg;
 	}
 
 	/**
@@ -369,11 +395,11 @@ trait Utils {
 		$this->debug_message( '<b>' . __METHOD__ . '()</b>' );
 		global $wpdb;
 		if ( ! empty( $bucket ) ) {
-			$pending = $wpdb->get_results( $wpdb->prepare( "SELECT id,path,bucket FROM $wpdb->s3io_images WHERE bucket LIKE %s AND image_size IS NULL", $bucket ), ARRAY_A );
+			$pending = $wpdb->get_results( $wpdb->prepare( "SELECT id,path,bucket FROM $wpdb->s3io_images WHERE bucket LIKE %s AND image_size IS NULL", $bucket ), \ARRAY_A );
 		} else {
-			$pending = $wpdb->get_results( "SELECT id,path,bucket FROM $wpdb->s3io_images WHERE image_size IS NULL", ARRAY_A );
+			$pending = $wpdb->get_results( "SELECT id,path,bucket FROM $wpdb->s3io_images WHERE image_size IS NULL", \ARRAY_A );
 		}
-		if ( is_array( $pending ) && count( $pending ) > 0 ) {
+		if ( \is_array( $pending ) && \count( $pending ) > 0 ) {
 			return $pending;
 		}
 		return array();
@@ -396,7 +422,7 @@ trait Utils {
 	 *
 	 * @return int Number of pending/un-optimized images.
 	 */
-	protected function table_count_pending() {
+	public function table_count_pending() {
 		global $wpdb;
 		$count = $wpdb->get_var( "SELECT COUNT(*) FROM $wpdb->s3io_images WHERE image_size IS NULL" );
 		return $count;
@@ -418,7 +444,7 @@ trait Utils {
 	/**
 	 * Remove all un-optimized images from the s3io_images table.
 	 */
-	protected function table_delete_pending() {
+	public function table_delete_pending() {
 		global $wpdb;
 		$wpdb->query( "DELETE FROM $wpdb->s3io_images WHERE image_size IS NULL" );
 	}
@@ -440,7 +466,7 @@ trait Utils {
 	/**
 	 * Wipes out the s3io_images table to allow re-optimization.
 	 */
-	protected function table_truncate() {
+	public function table_truncate() {
 		global $wpdb;
 		$wpdb->query( "TRUNCATE TABLE $wpdb->s3io_images" );
 	}
@@ -455,10 +481,10 @@ trait Utils {
 		if ( empty( $file ) ) {
 			return false;
 		}
-		if ( false !== \strpos( $file, '://' ) ) {
+		if ( \str_contains( $file, '://' ) ) {
 			return false;
 		}
-		if ( false !== \strpos( $file, 'phar://' ) ) {
+		if ( \str_contains( $file, 'phar://' ) ) {
 			return false;
 		}
 		return \is_file( $file );
@@ -528,13 +554,13 @@ trait Utils {
 	 * Setup the filesystem class.
 	 */
 	public function get_filesystem() {
-		require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
-		require_once ABSPATH . 'wp-admin/includes/class-wp-filesystem-direct.php';
-		if ( ! defined( 'FS_CHMOD_DIR' ) ) {
-			\define( 'FS_CHMOD_DIR', ( \fileperms( ABSPATH ) & 0777 | 0755 ) );
+		require_once \ABSPATH . 'wp-admin/includes/class-wp-filesystem-base.php';
+		require_once \ABSPATH . 'wp-admin/includes/class-wp-filesystem-direct.php';
+		if ( ! \defined( 'FS_CHMOD_DIR' ) ) {
+			\define( 'FS_CHMOD_DIR', ( \fileperms( \ABSPATH ) & 0777 | 0755 ) );
 		}
-		if ( ! defined( 'FS_CHMOD_FILE' ) ) {
-			\define( 'FS_CHMOD_FILE', ( \fileperms( ABSPATH . 'index.php' ) & 0777 | 0644 ) );
+		if ( ! \defined( 'FS_CHMOD_FILE' ) ) {
+			\define( 'FS_CHMOD_FILE', ( \fileperms( \ABSPATH . 'index.php' ) & 0777 | 0644 ) );
 		}
 		if ( ! \is_object( $this->filesystem ) ) {
 			$this->filesystem = new \WP_Filesystem_Direct( '' );
@@ -619,7 +645,7 @@ trait Utils {
 	 * @return string|bool The mime type based on the extension or false.
 	 */
 	public function quick_mimetype( $path ) {
-		$pathextension = \strtolower( \pathinfo( $path, PATHINFO_EXTENSION ) );
+		$pathextension = \strtolower( \pathinfo( $path, \PATHINFO_EXTENSION ) );
 		switch ( $pathextension ) {
 			case 'bmp':
 				return 'image/bmp';
@@ -671,8 +697,8 @@ trait Utils {
 	 * @return int The memory limit in bytes.
 	 */
 	public function memory_limit() {
-		if ( \defined( 'EIO_MEMORY_LIMIT' ) && EIO_MEMORY_LIMIT ) {
-			$memory_limit = EIO_MEMORY_LIMIT;
+		if ( \defined( 'EIO_MEMORY_LIMIT' ) && \EIO_MEMORY_LIMIT ) {
+			$memory_limit = \EIO_MEMORY_LIMIT;
 		} elseif ( \function_exists( '\ini_get' ) ) {
 			$memory_limit = \ini_get( 'memory_limit' );
 		} else {
@@ -683,7 +709,7 @@ trait Utils {
 				define( 'EIO_MEMORY_LIMIT', $memory_limit );
 			}
 		}
-		if ( \defined( 'WP_CLI' ) && WP_CLI ) {
+		if ( \defined( 'WP_CLI' ) && \WP_CLI ) {
 			\WP_CLI::debug( "memory limit is set at $memory_limit" );
 		}
 		if ( ! $memory_limit || -1 === \intval( $memory_limit ) ) {
@@ -703,7 +729,7 @@ trait Utils {
 	 */
 	public function stl_check() {
 		$this->debug_message( '<b>' . __METHOD__ . '()</b>' );
-		if ( defined( 'S3IO_DISABLE_STL' ) && S3IO_DISABLE_STL ) {
+		if ( \defined( 'S3IO_DISABLE_STL' ) && \S3IO_DISABLE_STL ) {
 			$this->debug_message( 'stl disabled by user' );
 			return false;
 		}
@@ -745,9 +771,9 @@ trait Utils {
 	 * @return string The haystack with needle removed from the end.
 	 */
 	public function remove_from_end( $haystack, $needle ) {
-		$needle_length = strlen( $needle );
-		if ( substr( $haystack, -$needle_length ) === $needle ) {
-			return substr( $haystack, 0, -$needle_length );
+		$needle_length = \strlen( $needle );
+		if ( \substr( $haystack, -$needle_length ) === $needle ) {
+			return \substr( $haystack, 0, -$needle_length );
 		}
 		return $haystack;
 	}
