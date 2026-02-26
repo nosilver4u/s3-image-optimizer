@@ -85,7 +85,7 @@ class Bulk extends Base {
 		\update_option( 's3io_bucket_paginator', '', false );
 		\update_option( 's3io_buckets_scanned', '', false );
 		if ( empty( $resume ) ) {
-			$this->table_delete_pending();
+			$this->table_clear_pending();
 		}
 		if ( 'media_page_s3io-bulk-display' === $hook ) {
 			// Submit a couple variables to the javascript to work with.
@@ -435,6 +435,7 @@ class Bulk extends Base {
 			'%s', // bucket.
 			'%s', // path.
 			'%d', // image_size.
+			'%d', // pending.
 		);
 
 		$original_extensions = array( 'png', 'jpg', 'jpeg', 'gif' );
@@ -553,6 +554,7 @@ class Bulk extends Base {
 									'bucket'    => $bucket,
 									'path'      => $path,
 									'orig_size' => $image_size,
+									'pending'   => 1,
 								);
 							}
 							if ( $verbose && $wpcli ) {
@@ -660,7 +662,7 @@ class Bulk extends Base {
 		// Generate the WP spinner image for display.
 		$loading_image = \plugins_url( '/wpspin.gif', \S3IO_PLUGIN_FILE );
 		global $wpdb;
-		$image_record = $wpdb->get_row( "SELECT path FROM $wpdb->s3io_images WHERE image_size IS NULL LIMIT 1", \ARRAY_A );
+		$image_record = $wpdb->get_row( "SELECT path FROM $wpdb->s3io_images WHERE pending = 1 LIMIT 1", \ARRAY_A );
 		// Let the user know that we are beginning.
 		$output['results'] = '<p>' . \esc_html__( 'Optimizing', 's3-image-optimizer' ) . ' <b>' . \esc_html( $image_record['path'] ) . "</b>&nbsp;<img src='" . \esc_url( $loading_image ) . "' alt='loading'/></p>";
 		\wp_die( \wp_json_encode( $output ) );
@@ -703,8 +705,9 @@ class Bulk extends Base {
 		) {
 			\set_time_limit( 0 );
 		}
+		global $ewww_image;
 		global $wpdb;
-		$image_record = $wpdb->get_row( "SELECT id,bucket,path,orig_size FROM $wpdb->s3io_images WHERE image_size IS NULL LIMIT 1", \ARRAY_A );
+		$image_record = $wpdb->get_row( "SELECT id,bucket,path,orig_size FROM $wpdb->s3io_images WHERE pending = 1 LIMIT 1", \ARRAY_A );
 		$this->debug_message( \gmdate( 'Y-m-d H:i:s' ) . 'image retrieved from db' );
 
 		$upload_dir = $this->make_upload_dir();
@@ -832,9 +835,14 @@ class Bulk extends Base {
 			}
 		}
 		\unlink( $filename );
+		$webp_error    = 0;
 		$webp_filename = \ewww_image_optimizer_get_webp_path( $filename );
 		$webp_key      = \ewww_image_optimizer_get_webp_path( $image_record['path'] );
 		$webp_size     = $this->filesize( $webp_filename );
+		if ( is_object( $ewww_image ) && ! empty( $ewww_image->webp_error ) && is_int( $ewww_image->webp_error ) ) {
+			$webp_error = $ewww_image->webp_error;
+		}
+		$this->debug_message( print_r( $ewww_image, true ) );
 		if ( $webp_size && ! empty( $webp_key ) ) {
 			if ( $verbose && $wpcli ) {
 				/* translators: %s: filename */
@@ -880,7 +888,7 @@ class Bulk extends Base {
 			\unlink( $webp_filename );
 		}
 		$this->debug_message( \gmdate( 'Y-m-d H:i:s' ) . 'stash db record' );
-		$this->table_update( $image_record['path'], $new_size, $fetch_result['ContentLength'], $image_record['id'], $image_record['bucket'] );
+		$this->table_update( $image_record['path'], $new_size, $fetch_result['ContentLength'], $webp_size, $webp_error, $image_record['id'], $image_record['bucket'] );
 		$this->debug_message( \gmdate( 'Y-m-d H:i:s' ) . 'remove db record' );
 		// Make sure ewww doesn't keep a record of these files.
 		$wpdb->delete( $wpdb->ewwwio_images, array( 'path' => \ewww_image_optimizer_relativize_path( $filename ) ) );
@@ -915,7 +923,7 @@ class Bulk extends Base {
 		$output['results'] .= \sprintf( \esc_html__( 'Elapsed: %s seconds', 's3-image-optimizer' ), \number_format_i18n( $elapsed, 1 ) ) . '</p>';
 
 		// Find the next image to optimize.
-		$image_record = $wpdb->get_row( "SELECT path FROM $wpdb->s3io_images WHERE image_size IS NULL LIMIT 1", \ARRAY_A );
+		$image_record = $wpdb->get_row( "SELECT path FROM $wpdb->s3io_images WHERE pending = 1 LIMIT 1", \ARRAY_A );
 		$this->debug_message( \gmdate( 'Y-m-d H:i:s' ) . 'retrieved next image from db' );
 		if ( ! empty( $image_record ) ) {
 			$loading_image = \plugins_url( '/wpspin.gif', \S3IO_PLUGIN_FILE );
@@ -1062,6 +1070,7 @@ class Bulk extends Base {
 				);
 			}
 		}
+		global $ewww_image;
 		$orig_size = $this->filesize( $filename );
 		// Make sure EWWW IO doesn't skip images.
 		\ewwwio()->force = true;
@@ -1111,9 +1120,13 @@ class Bulk extends Base {
 			}
 		}
 		\unlink( $filename );
+		$webp_error    = 0;
 		$webp_filename = \ewww_image_optimizer_get_webp_path( $filename );
 		$webp_key      = \ewww_image_optimizer_get_webp_path( $url_args['path'] );
 		$webp_size     = $this->filesize( $webp_filename );
+		if ( is_object( $ewww_image ) && ! empty( $ewww_image->webp_error ) && is_int( $ewww_image->webp_error ) ) {
+			$webp_error = $ewww_image->webp_error;
+		}
 		if ( $webp_size && ! empty( $webp_key ) ) {
 			// Upload to S3.
 			try {
@@ -1147,7 +1160,7 @@ class Bulk extends Base {
 			}
 			\unlink( $webp_filename );
 		}
-		$this->table_update( $url_args['path'], $new_size, $fetch_result['ContentLength'], false, $url_args['bucket'] );
+		$this->table_update( $url_args['path'], $new_size, $fetch_result['ContentLength'], $webp_size, $webp_error, false, $url_args['bucket'] );
 		// Make sure ewww doesn't keep a record of these files.
 		global $wpdb;
 		$wpdb->delete( $wpdb->ewwwio_images, array( 'path' => \ewww_image_optimizer_relativize_path( $filename ) ) );
@@ -1292,6 +1305,11 @@ class Bulk extends Base {
 					/* translators: %s: size of image, in bytes */
 					echo \esc_html( $this->get_results_msg( $optimized_image['orig_size'], $optimized_image['image_size'] ) ) . ' <br>' . \sprintf( \esc_html__( 'Image Size: %s', 's3-image-optimizer' ), \esc_html( $file_size ) );
 					?>
+					<?php if ( ! empty( $optimized_image['webp_size'] ) ) : ?>
+						<br>WebP: <?php echo \esc_html( $this->size_format( $optimized_image['webp_size'] ) ); ?>
+					<?php elseif ( ! empty( $optimized_image['webp_error'] ) && 2 !== (int) $optimized_image['webp_error'] ) : ?>
+						<br><?php echo \esc_html( \ewww_image_optimizer_webp_error_message( $optimized_image['webp_error'] ) ); ?>
+					<?php endif; ?>
 					<br><a class="removeimage" onclick="s3ioRemoveImage( <?php echo (int) $optimized_image['id']; ?> )"><?php \esc_html_e( 'Remove from table', 's3-image-optimizer' ); ?></a>
 				</td>
 			</tr>
@@ -1325,10 +1343,12 @@ class Bulk extends Base {
 	 * @param string $path The location of the file.
 	 * @param int    $opt_size The filesize of the optimized image.
 	 * @param int    $orig_size The original filesize of the image.
+	 * @param int    $webp_size The filesize of the WebP image (if any). Optional.
+	 * @param int    $webp_error An error code for the WebP conversion. Optional.
 	 * @param int    $id The ID of the db record which we are about to update. Optional. Default to false.
 	 * @param string $bucket The name of the bucket where the image is located. Optional. Default to empty string.
 	 */
-	protected function table_update( $path, $opt_size, $orig_size, $id = false, $bucket = '' ) {
+	protected function table_update( $path, $opt_size, $orig_size, $webp_size = 0, $webp_error = 0, $id = false, $bucket = '' ) {
 		global $wpdb;
 
 		$opt_size  = (int) $opt_size;
@@ -1349,11 +1369,17 @@ class Bulk extends Base {
 					$wpdb->s3io_images,
 					array(
 						'image_size' => $opt_size,
+						'webp_size'  => $webp_size,
+						'webp_error' => $webp_error,
+						'pending'    => 0,
 					),
 					array(
 						'id' => $id,
 					),
 					array(
+						'%d',
+						'%d',
+						'%d',
 						'%d',
 					),
 					array(
@@ -1376,11 +1402,17 @@ class Bulk extends Base {
 					$wpdb->s3io_images,
 					array(
 						'image_size' => $opt_size,
+						'webp_size'  => $webp_size,
+						'webp_error' => $webp_error,
+						'pending'    => 0,
 					),
 					array(
 						'id' => $id,
 					),
 					array(
+						'%d',
+						'%d',
+						'%d',
 						'%d',
 					),
 					array(
@@ -1418,11 +1450,17 @@ class Bulk extends Base {
 				$wpdb->s3io_images,
 				array(
 					'image_size' => $opt_size,
+					'webp_size'  => $webp_size,
+					'webp_error' => $webp_error,
+					'pending'    => 0,
 				),
 				array(
 					'id' => $already_optimized['id'],
 				),
 				array(
+					'%d',
+					'%d',
+					'%d',
 					'%d',
 				),
 				array(
@@ -1445,10 +1483,14 @@ class Bulk extends Base {
 				'path'       => $path,
 				'image_size' => $opt_size,
 				'orig_size'  => $orig_size,
+				'webp_size'  => $webp_size,
+				'webp_error' => $webp_error,
 			),
 			array(
 				'%s',
 				'%s',
+				'%d',
+				'%d',
 				'%d',
 				'%d',
 			)

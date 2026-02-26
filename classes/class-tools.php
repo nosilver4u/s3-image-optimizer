@@ -120,6 +120,8 @@ class Tools extends Base {
 			<p>
 				<?php \esc_html_e( 'A bulk operation appears to be in progress. Please wait for it to complete or reset the process on the S3 Bulk Optimizer page.', 's3-image-optimizer' ); ?>
 			</p>
+		</div>
+			<?php return; ?>
 		<?php endif; ?>
 			<div id="s3io-tools-loading" style="display: none;">
 				<?php \esc_html_e( 'Scanning', 's3-image-optimizer' ); ?>
@@ -143,6 +145,27 @@ class Tools extends Base {
 				</form>
 			</div>
 		<?php if ( ! empty( $rename_resume ) || ! empty( $buckets_scanned ) || ! empty( $paginator ) ) : ?>
+			<p class="s3io-tool-info">
+				<?php \esc_html_e( 'A previous operation was not completed, will resume from last image processed.', 's3-image-optimizer' ); ?>
+			</p>
+			<form id="s3io-tool-reset" class="s3io-tool-form" method="post" action="">
+				<?php \wp_nonce_field( 's3io-bulk-reset', 's3io_wpnonce' ); ?>
+				<input type="hidden" name="s3io_reset_bulk" value="1">
+				<button type="submit" class="button-secondary action"><?php \esc_html_e( 'Reset progress and start over', 's3-image-optimizer' ); ?></button>
+			</form>
+		<?php endif; ?>
+			<div class="s3io-tool-info">
+				<h2><?php \esc_html_e( 'Delete WebP Images', 's3-image-optimizer' ); ?></h2>
+				<p>
+					<?php \esc_html_e( 'This tool will search all buckets for WebP images that are copies of a JPG, PNG, or GIF and remove them. There is no undo, proceed with extreme caution.', 's3-image-optimizer' ); ?>
+				</p>
+			</div>
+			<div class="s3io-tool-form">
+				<form id="s3io-webp-delete" class="s3io-tool-form" method="post" action="">
+					<input type="submit" class="button-primary action" value="<?php \esc_attr_e( 'Delete All WebP Copies', 's3-image-optimizer' ); ?>" />
+				</form>
+			</div>
+		<?php if ( ! empty( $delete_resume ) || ! empty( $buckets_scanned ) || ! empty( $paginator ) ) : ?>
 			<p class="s3io-tool-info">
 				<?php \esc_html_e( 'A previous operation was not completed, will resume from last image processed.', 's3-image-optimizer' ); ?>
 			</p>
@@ -246,9 +269,6 @@ class Tools extends Base {
 			foreach ( $already_optimized as $optimized ) {
 				$optimized_path                    = $optimized['path'];
 				$optimized_list[ $optimized_path ] = (int) $optimized['image_size'];
-			}
-			if ( $this->stl_check() ) {
-				\set_time_limit( 0 );
 			}
 			try {
 				foreach ( $results as $result ) {
@@ -436,11 +456,223 @@ class Tools extends Base {
 
 	/**
 	 * Scan buckets for webp image copies and remove them.
-	 *
-	 * @param bool $verbose Enable (true) to output WP_CLI logging. Default false.
 	 */
-	public function webp_delete_loop( $verbose = false ) {
+	public function webp_delete_loop() {
 		$this->debug_message( '<b>' . __METHOD__ . '()</b>' );
 		$wpcli = false;
+		if ( \defined( 'WP_CLI' ) && \WP_CLI ) {
+			$wpcli = true;
+		}
+		$permissions = \apply_filters( 'ewww_image_optimizer_bulk_permissions', '' );
+		if ( ! $wpcli && ( empty( $_REQUEST['s3io_wpnonce'] ) || ! \wp_verify_nonce( \sanitize_key( $_REQUEST['s3io_wpnonce'] ), 's3io-bulk' ) || ! \current_user_can( $permissions ) ) ) {
+			\wp_die( \wp_json_encode( array( 'error' => \esc_html__( 'Access token has expired, please reload the page.', 's3-image-optimizer' ) ) ) );
+		}
+
+		global $wpdb;
+		$start_time          = \microtime( true );
+		$already_done        = ! empty( $_POST['completed'] ) ? (int) $_POST['completed'] : 0;
+		$images_processed    = 0;
+		$images_deleted      = 0;
+		$output              = '';
+		$original_extensions = array( 'png', 'jpg', 'jpeg', 'gif' );
+
+		if ( $this->stl_check() ) {
+			\set_time_limit( 0 );
+		}
+		\s3io()->errors = array();
+
+		try {
+			$client = \s3io()->amazon_web_services->get_client();
+		} catch ( AwsException | S3Exception | Exception $e ) {
+			$s3io_error = $this->format_aws_exception( $e->getMessage() );
+			$this->flush_output_to_cli( $s3io_error, 'error' );
+			\wp_die( \wp_json_encode( array( 'error' => $s3io_error ) ) );
+		}
+
+		$bucket_list = $this->get_selected_buckets();
+		if ( ! empty( s3io()->errors ) ) {
+			$this->flush_output_to_cli( s3io()->errors, 'error' );
+			\wp_die( \wp_json_encode( array( 'error' => s3io()->errors[0] ) ) );
+		}
+
+		\update_option( 's3io_webp_delete_resume', true, false );
+
+		$buckets_scanned   = \get_option( 's3io_buckets_scanned' );
+		$completed_buckets = $this->is_iterable( $buckets_scanned ) ? $buckets_scanned : array();
+		$paginator         = \get_option( 's3io_bucket_paginator' );
+		foreach ( $bucket_list as $bucket ) {
+			$this->debug_message( "scanning $bucket" );
+			if ( $wpcli ) {
+				/* translators: %s: S3 bucket name */
+				\WP_CLI::line( \sprintf( \__( 'Scanning bucket %s...', 's3-image-optimizer' ), $bucket ) );
+			}
+			if ( \in_array( $bucket, $completed_buckets, true ) ) {
+				$this->debug_message( "skipping $bucket, already done" );
+				continue;
+			}
+			try {
+				$location = $client->getBucketLocation( array( 'Bucket' => $bucket ) );
+			} catch ( AwsException | S3Exception | Exception $e ) {
+				$location = new \WP_Error( 's3io_exception', $this->format_aws_exception( $e->getMessage() ) );
+			}
+			if ( \is_wp_error( $location ) && ( ! \defined( 'S3_IMAGE_OPTIMIZER_REGION' ) || ! \S3_IMAGE_OPTIMIZER_REGION ) ) {
+				/* translators: 1: bucket name 2: AWS error message */
+				$s3_error = \sprintf( \esc_html__( 'Could not get bucket location for %1$s, error: %2$s. You may set the region manually using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php.', 's3-image-optimizer' ), esc_html( $bucket ), wp_kses_post( $location->get_error_message() ) );
+				$this->flush_output_to_cli( $s3_error, 'error' );
+				\wp_die( \wp_json_encode( array( 'error' => $s3_error ) ) );
+			}
+
+			$paginator_args = array( 'Bucket' => $bucket );
+			if ( \defined( 'S3_IMAGE_OPTIMIZER_FOLDER' ) && \S3_IMAGE_OPTIMIZER_FOLDER ) {
+				$paginator_args['Prefix'] = \ltrim( \S3_IMAGE_OPTIMIZER_FOLDER, '/' );
+			}
+			if ( $paginator && \is_string( $paginator ) ) {
+				$this->debug_message( "starting from $paginator" );
+				$paginator_args['Marker'] = $paginator;
+			}
+
+			// In case you need to modify the arguments to the $client->getPaginator() call before they are used.
+			$paginator_args = \apply_filters( 's3io_scan_iterator_args', $paginator_args );
+
+			$results = $client->getPaginator( 'ListObjects', $paginator_args );
+
+			$already_optimized = $wpdb->get_results( $wpdb->prepare( "SELECT path,image_size FROM $wpdb->s3io_images WHERE bucket LIKE %s", $bucket ), \ARRAY_A );
+			$optimized_list    = array();
+			foreach ( $already_optimized as $optimized ) {
+				$optimized_path                    = $optimized['path'];
+				$optimized_list[ $optimized_path ] = (int) $optimized['image_size'];
+			}
+			try {
+				foreach ( $results as $result ) {
+					foreach ( $result['Contents'] as $object ) {
+						$elapsed = \microtime( true ) - $start_time;
+						if ( ! $wpcli && $elapsed > 20 ) {
+							$this->debug_message( "query time for $images_processed files (seconds): $elapsed" );
+							// Find out if our nonce is on it's last leg/tick.
+							$tick = \wp_verify_nonce( \sanitize_key( $_REQUEST['s3io_wpnonce'] ), 's3io-bulk' );
+							/* translators: %d: number of images */
+							$counter_msg = \sprintf( \esc_html__( 'Checked %d images', 's3-image-optimizer' ), \intval( $images_processed + $already_done ) );
+							if ( ! empty( $images_deleted ) ) {
+								/* translators: %d: number of images */
+								$output .= \sprintf( \esc_html__( 'Deleted %d WebP images', 's3-image-optimizer' ), (int) $images_deleted ) . '<br>';
+							}
+							\wp_die(
+								\wp_json_encode(
+									array(
+										'output'      => $output,
+										'counter_msg' => $counter_msg,
+										'completed'   => $images_processed, // Number of images scanned in current iteration/loop.
+										'new_nonce'   => 2 === (int) $tick ? \wp_create_nonce( 's3io-bulk' ) : false,
+									)
+								)
+							);
+						}
+						$this->images_found[] = array(
+							'bucket' => $bucket,
+							'data'   => $object,
+						);
+						++$images_processed;
+						$path = $object['Key'];
+						$this->debug_message( "$images_processed: checking $path" );
+
+						if ( ! \str_ends_with( $path, '.webp' ) ) {
+							continue;
+						}
+
+						$replace_base  = '';
+						$original_path = $this->remove_from_end( $path, '.webp' );
+						$info          = \pathinfo( $original_path );
+						$ext           = \strtolower( $info['extension'] ?? '' );
+						$is_real_ext   = \in_array( $ext, $original_extensions, true );
+						$is_webp_copy  = false;
+						if ( $is_real_ext ) {
+							if ( $this->object_exists( $bucket, $original_path, $client ) ) {
+								$is_webp_copy = true;
+							}
+						} else {
+							foreach ( $original_extensions as $ext ) {
+								$original_lpath = $original_path . '.' . $ext;
+								$original_upath = $original_path . '.' . strtoupper( $ext );
+								// This works without checking the bucket name because the query for the $optimized_list is refreshed after each bucket.
+								if ( isset( $optimized_list[ $original_lpath ] ) ) {
+									$replace_base = $original_lpath;
+									$is_webp_copy = true;
+									break;
+								} elseif ( isset( $optimized_list[ $original_upath ] ) ) {
+									$replace_base = $original_upath;
+									$is_webp_copy = true;
+									break;
+								} elseif ( $this->object_exists( $bucket, $original_lpath, $client ) ) {
+									$replace_base = $original_lpath;
+									$is_webp_copy = true;
+									break;
+								} elseif ( $this->object_exists( $bucket, $original_upath, $client ) ) {
+									$replace_base = $original_upath;
+									$is_webp_copy = true;
+									break;
+								}
+							}
+						}
+						try {
+							if ( $is_webp_copy ) {
+								$this->debug_message( "$path is a copy of $replace_base, deleting" );
+								$client->deleteObject(
+									array(
+										'Bucket' => $bucket,
+										'Key'    => $path,
+									)
+								);
+								++$images_deleted;
+								/* translators: 1: a webp file 2: an S3 bucket name 3: another webp file */
+								$output .= \sprintf( \esc_html__( '%1$s: %2$s removed', 's3-image-optimizer' ), \esc_html( $bucket ), \esc_html( $path ) ) . '<br>';
+								$output  = $this->flush_output_to_cli( $output );
+							}
+						} catch ( AwsException | S3Exception | Exception $e ) {
+							/* translators: 1: file name 2: bucket name 3: AWS error message */
+							$s3_error = \sprintf( \esc_html__( 'Error encountered while renaming %1$s in %2$s. Error: %3$s.', 's3-image-optimizer' ), \esc_html( $path ), \esc_html( $bucket ), \wp_kses_post( $this->format_aws_exception( $e->getMessage() ) ) );
+							$this->flush_output_to_cli( $s3_error, 'error' );
+							\wp_die( \wp_json_encode( array( 'error' => $s3_error ) ) );
+						}
+					} // End foreach object.
+				} // End foreach result (page or something of that nature).
+			} catch ( AwsException | S3Exception | Exception $e ) {
+				/* translators: 1: bucket name 2: AWS error message */
+				$s3_error = \sprintf( \esc_html__( 'Error encountered while scanning %1$s. You may need to set the region using the S3_IMAGE_OPTIMIZER_REGION constant in wp-config.php. Error: %2$s.', 's3-image-optimizer' ), $bucket, \wp_kses_post( $this->format_aws_exception( $e->getMessage() ) ) );
+				$this->flush_output_to_cli( $s3_error, 'error' );
+				\wp_die( \wp_json_encode( array( 'error' => $s3_error ) ) );
+			}
+			$paginator = '';
+			\update_option( 's3io_bucket_paginator', $paginator, false );
+			$completed_buckets[] = $bucket;
+			$this->debug_message( "adding $bucket to the completed list" );
+			\update_option( 's3io_buckets_scanned', $completed_buckets, false );
+		} // End foreach bucket.
+
+		$elapsed = \microtime( true ) - $start_time;
+		$this->debug_message( "query time for $images_processed files (seconds): $elapsed" );
+		\update_option( 's3io_webp_delete_resume', '', false );
+		\update_option( 's3io_buckets_scanned', '', false );
+		if ( ! $wpcli ) {
+			/* translators: %d: number of images */
+			$counter_msg = \sprintf( \esc_html__( 'Checked %d images', 's3-image-optimizer' ), \intval( $images_processed + $already_done ) );
+			if ( ! empty( $images_deleted ) ) {
+				/* translators: %d: number of images */
+				$output .= \sprintf( \esc_html__( 'Deleted %d WebP images', 's3-image-optimizer' ), (int) $images_deleted ) . '<br>';
+			}
+			\wp_die(
+				\wp_json_encode(
+					array(
+						'output'      => $output,
+						'counter_msg' => $counter_msg,
+						'completed'   => $images_processed, // Number of images scanned in this iteration/loop.
+						'done'        => 1,
+					)
+				)
+			);
+		}
+		/* translators: %d: number of images */
+		\WP_CLI::line( \sprintf( \__( 'Checked %d images', 's3-image-optimizer' ), $images_processed ) );
+		/* translators: %d: number of images */
+		\WP_CLI::line( \sprintf( \__( 'Deleted %d WebP images', 's3-image-optimizer' ), $images_deleted ) );
 	}
 }

@@ -74,9 +74,10 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 == Changelog ==
 
 = 2.6.2 =
+* added: support for optimizing WebP image uploads
 * added: support for WebP naming mode in EWWW Image Optimizer
 * added: utility for migrating between WebP naming modes
-* added: support for optimizing WebP image uploads
+* added: utility to remove all WebP image copies from S3
 * improve: optimize by URL handles path-style URLs and 404 errors better
 * changed: AWS exception handling catches more errors and is more readable
 * updated: AWS SDK to latest version

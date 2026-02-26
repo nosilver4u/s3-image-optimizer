@@ -24,7 +24,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 if ( ! class_exists( '\S3IO\Plugin' ) ) {
-	define( 'S3IO_VERSION', 261.41 );
+	define( 'S3IO_VERSION', 261.44 );
 	define( 'S3IO_PLUGIN_FILE', __FILE__ );
 	define( 'S3IO_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 

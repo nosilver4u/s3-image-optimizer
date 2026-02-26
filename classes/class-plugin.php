@@ -330,6 +330,10 @@ final class Plugin extends Base {
 			path text NOT NULL,
 			image_size int unsigned,
 			orig_size int unsigned,
+			backup varchar(100),
+			webp_size int unsigned,
+			webp_error tinyint unsigned,
+			pending tinyint NOT NULL DEFAULT 0,
 			$primary_key_definition
 			KEY path (path($path_index_size))
 		) $charset_collate;";

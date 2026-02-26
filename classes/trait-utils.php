@@ -395,9 +395,9 @@ trait Utils {
 		$this->debug_message( '<b>' . __METHOD__ . '()</b>' );
 		global $wpdb;
 		if ( ! empty( $bucket ) ) {
-			$pending = $wpdb->get_results( $wpdb->prepare( "SELECT id,path,bucket FROM $wpdb->s3io_images WHERE bucket LIKE %s AND image_size IS NULL", $bucket ), \ARRAY_A );
+			$pending = $wpdb->get_results( $wpdb->prepare( "SELECT id,path,bucket FROM $wpdb->s3io_images WHERE bucket LIKE %s AND pending = 1", $bucket ), \ARRAY_A );
 		} else {
-			$pending = $wpdb->get_results( "SELECT id,path,bucket FROM $wpdb->s3io_images WHERE image_size IS NULL", \ARRAY_A );
+			$pending = $wpdb->get_results( "SELECT id,path,bucket FROM $wpdb->s3io_images WHERE pending = 1", \ARRAY_A );
 		}
 		if ( \is_array( $pending ) && \count( $pending ) > 0 ) {
 			return $pending;
@@ -424,7 +424,7 @@ trait Utils {
 	 */
 	public function table_count_pending() {
 		global $wpdb;
-		$count = $wpdb->get_var( "SELECT COUNT(*) FROM $wpdb->s3io_images WHERE image_size IS NULL" );
+		$count = $wpdb->get_var( "SELECT COUNT(*) FROM $wpdb->s3io_images WHERE pending = 1" );
 		return $count;
 	}
 
@@ -438,15 +438,16 @@ trait Utils {
 			return;
 		}
 		global $wpdb;
-		$wpdb->query( $wpdb->prepare( "UPDATE $wpdb->s3io_images SET image_size = NULL WHERE id = %d", (int) $id ) );
+		$wpdb->query( $wpdb->prepare( "UPDATE $wpdb->s3io_images SET pending = 1 WHERE id = %d", (int) $id ) );
 	}
 
 	/**
-	 * Remove all un-optimized images from the s3io_images table.
+	 * Remove all un-optimized images from the s3io_images table and unset pending flags on previously optimized images.
 	 */
-	public function table_delete_pending() {
+	public function table_clear_pending() {
 		global $wpdb;
 		$wpdb->query( "DELETE FROM $wpdb->s3io_images WHERE image_size IS NULL" );
+		$wpdb->query( "UPDATE $wpdb->s3io_images SET pending = 0 WHERE pending = 1" );
 	}
 
 	/**

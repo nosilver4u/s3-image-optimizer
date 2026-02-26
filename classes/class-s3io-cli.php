@@ -84,7 +84,7 @@ class S3IO_CLI extends WP_CLI_Command {
 		$verbose = ( empty( $assoc_args['verbose'] ) ? false : true );
 
 		if ( empty( $resume ) ) {
-			s3io()->table_delete_pending();
+			s3io()->table_clear_pending();
 			WP_CLI::line( __( 'Scanning, this could take a while', 's3-image-optimizer' ) );
 			s3io()->bulk->image_scan( $verbose );
 		}
@@ -180,8 +180,47 @@ class S3IO_CLI extends WP_CLI_Command {
 		} else {
 			WP_CLI::line( __( 'Renaming WebP images, from append mode to replace mode.', 's3-image-optimizer' ) );
 		}
+		WP_CLI::confirm( __( 'Do you wish to continue?', 's3-image-optimizer' ) );
 
 		s3io()->tools->webp_rename_loop();
+	}
+
+	/**
+	 * Delete WebP Images in S3 buckets
+	 *
+	 * Checks for .webp images that are copies of an original JPG, PNG, or GIF and removes them.
+	 * There is no undo, proceed with extreme caution.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <reset>
+	 * : optional, start over instead of resuming from last position
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp-cli s3io webp_delete --reset
+	 *
+	 * @synopsis [--reset]
+	 *
+	 * @param array $args A numbered array of arguments provided via WP-CLI without option names.
+	 * @param array $assoc_args An array of named arguments provided via WP-CLI.
+	 */
+	public function webp_delete( $args, $assoc_args ) {
+
+		// because NextGEN hasn't flushed it's buffers...
+		while ( @ob_end_flush() ); // phpcs:ignore
+
+		if ( ! empty( $assoc_args['reset'] ) ) {
+			\update_option( 's3io_webp_rename_resume', '', false );
+			\update_option( 's3io_webp_delete_resume', '', false );
+			\update_option( 's3io_bucket_paginator', '', false );
+			\update_option( 's3io_buckets_scanned', '', false );
+			WP_CLI::line( __( 'Renaming process has been reset, starting from the beginning.', 's3-image-optimizer' ) );
+		}
+
+		WP_CLI::confirm( __( 'You are about to remove all WebP copies from all of your S3 buckets. Do you wish to continue?', 's3-image-optimizer' ) );
+
+		s3io()->tools->webp_delete_loop();
 	}
 }
 
