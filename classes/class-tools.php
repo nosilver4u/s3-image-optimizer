@@ -622,6 +622,7 @@ class Tools extends Base {
 										'Key'    => $path,
 									)
 								);
+								$this->delete_webp_info( $bucket, $replace_base );
 								++$images_deleted;
 								/* translators: 1: a webp file 2: an S3 bucket name 3: another webp file */
 								$output .= \sprintf( \esc_html__( '%1$s: %2$s removed', 's3-image-optimizer' ), \esc_html( $bucket ), \esc_html( $path ) ) . '<br>';

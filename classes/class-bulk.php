@@ -23,6 +23,22 @@ class Bulk extends Base {
 	use Utils;
 
 	/**
+	 * Whether we are in Force Re-optimize mode.
+	 *
+	 * @access public
+	 * @var bool $force
+	 */
+	public $force = false;
+
+	/**
+	 * Whether we are in WebP-only mode.
+	 *
+	 * @access public
+	 * @var bool $webp_only
+	 */
+	public $webp_only = false;
+
+	/**
 	 * Setup the class and get things rolling.
 	 */
 	public function __construct() {
@@ -166,7 +182,7 @@ class Bulk extends Base {
 		$loading_image = \plugins_url( '/wpspin.gif', \S3IO_PLUGIN_FILE );
 		echo "\n";
 		?>
-		<div class="wrap">
+		<div class="wrap s3io-bulk-wrapper">
 			<h1><?php \esc_html_e( 'S3 Bulk Optimizer', 's3-image-optimizer' ); ?></h1>
 		<?php
 		if ( ! empty( \s3io()->errors ) && \is_array( \s3io()->errors ) ) {
@@ -176,119 +192,138 @@ class Bulk extends Base {
 		}
 		\s3io()->errors = array();
 		?>
-			<div id="s3io-bulk-loading">
-				<p id="s3io-loading" class="s3io-bulk-info" style="display:none">&nbsp;<img src="<?php echo \esc_url( $loading_image ); ?>" /></p>
-			</div>
-			<div id="s3io-bulk-progressbar"></div>
-			<div id="s3io-bulk-counter"></div>
-			<form id="s3io-bulk-stop" style="display:none;" method="post" action="">
-				<br><input type="submit" class="button-secondary action" value="<?php \esc_attr_e( 'Stop Optimizing', 's3-image-optimizer' ); ?>" />
-			</form>
-			<div id="s3io-bulk-widgets" class="metabox-holder" style="display:none">
-				<div class="meta-box-sortables">
-					<div id="s3io-bulk-last" class="postbox">
-						<button type="button" class="s3io-handlediv button-link" aria-expanded="true">
-							<span class="screen-reader-text"><?php \esc_html_e( 'Click to toggle', 's3-image-optimizer' ); ?></span>
-							<span class="toggle-indicator" aria-hidden="true"></span>
-						</button>
-						<h2 class="s3io-hndle"><span><?php \esc_html_e( 'Last Image Optimized', 's3-image-optimizer' ); ?></span></h2>
-						<div class="inside"></div>
+			<div id="s3io-flex-wrapper">
+				<div id="s3io-bulk-left-wrapper">
+					<div id="s3io-bulk-loading">
+						<p id="s3io-loading" class="s3io-bulk-info" style="display:none">&nbsp;<img src="<?php echo \esc_url( $loading_image ); ?>" /></p>
 					</div>
-				</div>
-				<div class="meta-box-sortables">
-					<div id="s3io-bulk-status" class="postbox">
-						<button type="button" class="s3io-handlediv button-link" aria-expanded="true">
-							<span class="screen-reader-text"><?php \esc_html_e( 'Click to toggle', 's3-image-optimizer' ); ?></span>
-							<span class="toggle-indicator" aria-hidden="true"></span>
-						</button>
-						<h2 class="s3io-hndle"><span><?php \esc_html_e( 'Optimization Log', 's3-image-optimizer' ); ?></span></h2>
-						<div class="inside"></div>
+					<div id="s3io-bulk-progressbar"></div>
+					<div id="s3io-bulk-counter"></div>
+					<form id="s3io-bulk-stop" style="display:none;" method="post" action="">
+						<br><input type="submit" class="button-secondary action" value="<?php \esc_attr_e( 'Stop Optimizing', 's3-image-optimizer' ); ?>" />
+					</form>
+					<div id="s3io-bulk-widgets" class="metabox-holder" style="display:none">
+						<div class="meta-box-sortables">
+							<div id="s3io-bulk-last" class="postbox">
+								<button type="button" class="s3io-handlediv button-link" aria-expanded="true">
+									<span class="screen-reader-text"><?php \esc_html_e( 'Click to toggle', 's3-image-optimizer' ); ?></span>
+									<span class="toggle-indicator" aria-hidden="true"></span>
+								</button>
+								<h2 class="s3io-hndle"><span><?php \esc_html_e( 'Last Image Optimized', 's3-image-optimizer' ); ?></span></h2>
+								<div class="inside"></div>
+							</div>
+						</div>
+						<div class="meta-box-sortables">
+							<div id="s3io-bulk-status" class="postbox">
+								<button type="button" class="s3io-handlediv button-link" aria-expanded="true">
+									<span class="screen-reader-text"><?php \esc_html_e( 'Click to toggle', 's3-image-optimizer' ); ?></span>
+									<span class="toggle-indicator" aria-hidden="true"></span>
+								</button>
+								<h2 class="s3io-hndle"><span><?php \esc_html_e( 'Optimization Log', 's3-image-optimizer' ); ?></span></h2>
+								<div class="inside"></div>
+							</div>
+						</div>
 					</div>
-				</div>
-			</div>
-			<form id="s3io-delay-slider-form" class="s3io-bulk-form">
-				<p><label for="s3io-delay" style="font-weight: bold"><?php \esc_html_e( 'Choose how long to pause between images (in seconds, 0 = disabled)', 's3-image-optimizer' ); ?></label>&emsp;<input type="text" id="s3io-delay" name="s3io-delay" value="0"></p>
-				<div id="s3io-delay-slider" style="width:50%"></div>
-			</form>
-			<div id="s3io-bulk-forms">
-				<p class="s3io-media-info s3io-bulk-info"><strong><?php	\esc_html_e( 'Currently selected buckets:', 's3-image-optimizer' ); ?></strong>
-					<?php
-					$bucket_list = $this->get_selected_buckets();
-					if ( ! empty( \s3io()->errors ) ) {
-						echo '<span style="color: red"><strong>' . \esc_html( \s3io()->errors[0] ) . '</strong></p>';
-					} elseif ( empty( $bucket_list ) ) {
-						echo '<strong>' . \esc_html__( 'Unable to find any buckets to scan.', 's3-image-optimizer' ) . '</strong>';
-					} else {
-						foreach ( $bucket_list as $bucket ) {
-							echo '<br>' . \esc_html( $bucket );
-						}
-					}
-					?>
-				</p>
+					<div id="s3io-bulk-forms">
+						<p class="s3io-media-info s3io-bulk-info"><strong><?php	\esc_html_e( 'Currently selected buckets:', 's3-image-optimizer' ); ?></strong>
+							<?php
+							$bucket_list = $this->get_selected_buckets();
+							if ( ! empty( \s3io()->errors ) ) {
+								echo '<span style="color: red"><strong>' . \esc_html( \s3io()->errors[0] ) . '</strong></p>';
+							} elseif ( empty( $bucket_list ) ) {
+								echo '<strong>' . \esc_html__( 'Unable to find any buckets to scan.', 's3-image-optimizer' ) . '</strong>';
+							} else {
+								foreach ( $bucket_list as $bucket ) {
+									echo '<br>' . \esc_html( $bucket );
+								}
+							}
+							?>
+						</p>
 		<?php if ( empty( $s3io_resume ) && ! empty( $bucket_list ) ) : ?>
-				<form id="s3io-scan" class="s3io-bulk-form" method="post" action="">
-					<input id="s3io-scan-button" type="submit" class="button-primary" value="<?php echo \esc_attr( $button_text ); ?>" />
-				</form>
-				<p id="s3io-found-images" class="s3io-bulk-info" style="display:none;"></p>
-				<form id="s3io-start" class="s3io-bulk-form" style="display:none;" method="post" action="">
-					<input id="s3io-start-button" type="submit" class="button-primary" value="<?php echo \esc_attr( $start_text ); ?>" />
-				</form>
+						<form id="s3io-scan" class="s3io-bulk-form" method="post" action="">
+							<input id="s3io-scan-button" type="submit" class="button-primary" value="<?php echo \esc_attr( $button_text ); ?>" />
+						</form>
+						<p id="s3io-found-images" class="s3io-bulk-info" style="display:none;"></p>
+						<form id="s3io-start" class="s3io-bulk-form" style="display:none;" method="post" action="">
+							<input id="s3io-start-button" type="submit" class="button-primary" value="<?php echo \esc_attr( $start_text ); ?>" />
+						</form>
 		<?php endif; ?>
 		<?php if ( ! empty( $s3io_resume ) ) : ?>
-				<p id="s3io-found-images" class="s3io-bulk-info">
-					<?php
-					$pending = $this->table_count_pending();
-					/* translators: %d: number of images */
-					\printf( \esc_html__( 'There are %d images to be optimized.', 's3-image-optimizer' ), (int) $pending );
-					?>
-				</p>
-				<form id="s3io-start" class="s3io-bulk-form" method="post" action="">
-					<input id="s3io-start-button" type="submit" class="button-primary action" value="<?php echo \esc_attr( $button_text ); ?>" />
-				</form>
-				<p class="s3io-bulk-info">
-					<?php \esc_html_e( 'Would you like to clear the queue and rescan for images?', 's3-image-optimizer' ); ?>
-				</p>
-				<form id="s3io-bulk-reset" class="s3io-bulk-form" method="post" action="">
-					<?php \wp_nonce_field( 's3io-bulk-reset', 's3io_wpnonce' ); ?>
-					<input type="hidden" name="s3io_reset_bulk" value="1">
-					<button type="submit" class="button-secondary action"><?php \esc_html_e( 'Clear Queue', 's3-image-optimizer' ); ?></button>
-				</form>
+						<p id="s3io-found-images" class="s3io-bulk-info">
+							<?php
+							$pending = $this->table_count_pending();
+							/* translators: %d: number of images */
+							\printf( \esc_html__( 'There are %d images to be optimized.', 's3-image-optimizer' ), (int) $pending );
+							?>
+						</p>
+						<form id="s3io-start" class="s3io-bulk-form" method="post" action="">
+							<input id="s3io-start-button" type="submit" class="button-primary action" value="<?php echo \esc_attr( $button_text ); ?>" />
+						</form>
+						<p class="s3io-bulk-info">
+							<?php \esc_html_e( 'Would you like to clear the queue and rescan for images?', 's3-image-optimizer' ); ?>
+						</p>
+						<form id="s3io-bulk-reset" class="s3io-bulk-form" method="post" action="">
+							<?php \wp_nonce_field( 's3io-bulk-reset', 's3io_wpnonce' ); ?>
+							<input type="hidden" name="s3io_reset_bulk" value="1">
+							<button type="submit" class="button-secondary action"><?php \esc_html_e( 'Clear Queue', 's3-image-optimizer' ); ?></button>
+						</form>
 		<?php endif; ?>
 		<?php if ( ! empty( $already_optimized ) ) : ?>
-				<p class="s3io-bulk-info" style="margin-top: 2.5em">
-					<?php \esc_html_e( 'Force a re-optimization of all images by erasing the optimization history. This cannot be undone, as it will remove all optimization records from the database.', 's3-image-optimizer' ); ?>
-				</p>
-				<form id="s3io-force-empty" class="s3io-bulk-form" style="margin-bottom: 2.5em" method="post" action="">
-					<?php \wp_nonce_field( 's3io-bulk-empty', 's3io_wpnonce' ); ?>
-					<input type="hidden" name="s3io_force_empty" value="1">
-					<button type="submit" class="button-secondary action"><?php \esc_html_e( 'Erase Optimization History', 's3-image-optimizer' ); ?></button>
-				</form>
-				<p id="s3io-table-info" class="s3io-bulk-info">
-					<?php
-					/* translators: %d: number of images */
-					\printf( \esc_html__( 'The optimizer keeps track of already optimized images to prevent re-optimization. There are %d images that have been optimized so far.', 's3-image-optimizer' ), (int) $already_optimized );
-					?>
-				</p>
-				<form id="s3io-show-table" class="s3io-bulk-form" method="post" action="">
-					<button type="submit" class="button-secondary action"><?php \esc_html_e( 'Show Optimized Images', 's3-image-optimizer' ); ?></button>
-				</form>
-				<div class="tablenav s3io-aux-table" style="display:none">
-					<div class="tablenav-pages s3io-table">
-						<span class="displaying-num s3io-table"></span>
-						<span id="paginator" class="pagination-links s3io-table">
-							<a id="first-images" class="tablenav-pages-navspan button first-page" style="display:none">&laquo;</a>
-							<a id="prev-images" class="tablenav-pages-navspan button prev-page" style="display:none">&lsaquo;</a>
-							<?php \esc_html_e( 'page', 's3-image-optimizer' ); ?> <span class="current-page"></span> <?php \esc_html_e( 'of', 's3-image-optimizer' ); ?>
-							<span class="total-pages"></span>
-							<a id="next-images" class="tablenav-pages-navspan button next-page" style="display:none">&rsaquo;</a>
-							<a id="last-images" class="tablenav-pages-navspan button last-page" style="display:none">&raquo;</a>
-						</span>
-					</div>
-				</div>
-				<div id="s3io-bulk-table" class="s3io-table"></div>
-				<span id="s3io-pointer" style="display:none">0</span>
+						<p class="s3io-bulk-info" style="margin-top: 2.5em">
+							<?php \esc_html_e( 'Force a re-optimization of all images by erasing the optimization history. This cannot be undone, as it will remove all optimization records from the database.', 's3-image-optimizer' ); ?>
+						</p>
+						<form id="s3io-force-empty" class="s3io-bulk-form" style="margin-bottom: 2.5em" method="post" action="">
+							<?php \wp_nonce_field( 's3io-bulk-empty', 's3io_wpnonce' ); ?>
+							<input type="hidden" name="s3io_force_empty" value="1">
+							<button type="submit" class="button-secondary action"><?php \esc_html_e( 'Erase Optimization History', 's3-image-optimizer' ); ?></button>
+						</form>
+						<p id="s3io-table-info" class="s3io-bulk-info">
+							<?php
+							/* translators: %d: number of images */
+							\printf( \esc_html__( 'The optimizer keeps track of already optimized images to prevent re-optimization. There are %d images that have been optimized so far.', 's3-image-optimizer' ), (int) $already_optimized );
+							?>
+						</p>
+						<form id="s3io-show-table" class="s3io-bulk-form" method="post" action="">
+							<button type="submit" class="button-secondary action"><?php \esc_html_e( 'Show Optimized Images', 's3-image-optimizer' ); ?></button>
+						</form>
+						<div class="tablenav s3io-aux-table" style="display:none">
+							<div class="tablenav-pages s3io-table">
+								<span class="displaying-num s3io-table"></span>
+								<span id="paginator" class="pagination-links s3io-table">
+									<a id="first-images" class="tablenav-pages-navspan button first-page" style="display:none">&laquo;</a>
+									<a id="prev-images" class="tablenav-pages-navspan button prev-page" style="display:none">&lsaquo;</a>
+									<?php \esc_html_e( 'page', 's3-image-optimizer' ); ?> <span class="current-page"></span> <?php \esc_html_e( 'of', 's3-image-optimizer' ); ?>
+									<span class="total-pages"></span>
+									<a id="next-images" class="tablenav-pages-navspan button next-page" style="display:none">&rsaquo;</a>
+									<a id="last-images" class="tablenav-pages-navspan button last-page" style="display:none">&raquo;</a>
+								</span>
+							</div>
+						</div>
+						<div id="s3io-bulk-table" class="s3io-table"></div>
+						<span id="s3io-pointer" style="display:none">0</span>
 		<?php endif; ?>
-			</div><!-- end #s3io-bulk-forms -->
+					</div><!-- end #s3io-bulk-forms -->
+				</div><!-- end #s3io-bulk-left-wrapper -->
+				<form id="s3io-bulk-controls" class="s3io-bulk-form">
+					<p>
+						<input type="checkbox" id="s3io-force" name="s3io-force" />
+						<label for="s3io-force" style="font-weight: bold"><?php \esc_html_e( 'Force re-optimize', 's3-image-optimizer' ); ?></label><?php \ewwwio_help_link( 'https://docs.ewww.io/article/65-force-re-optimization', '5bb640a7042863158cc711cd' ); ?><br>
+						<?php \esc_html_e( 'Previously optimized images will be skipped by default, check this box before scanning to override.', 's3-image-optimizer' ); ?>
+					</p>
+		<?php if ( \ewww_image_optimizer_get_option( 'ewww_image_optimizer_webp' ) ) : ?>
+					<p>
+						<input type="checkbox" id="s3io-webp-only" name="s3io-webp-only" />
+						<label for="s3io-webp-only" style="font-weight: bold"><?php \esc_html_e( 'WebP Only', 's3-image-optimizer' ); ?></label><br>
+						<?php \esc_html_e( 'Skip compression and only attempt WebP conversion.', 's3-image-optimizer' ); ?>
+					</p>
+		<?php endif; ?>
+					<p>
+						<label for="s3io-delay" style="font-weight: bold"><?php \esc_html_e( 'Pause between images', 's3-image-optimizer' ); ?></label>
+						<input type="text" id="s3io-delay" name="s3io-delay" value="0"> <?php esc_html_e( 'in seconds', 's3-image-optimizer' ); ?>
+					</p>
+					<div id="s3io-delay-slider"></div>
+				</form>
+			</div><!-- end #s3io-flex-wrapper -->
 		</div><!-- end .wrap -->
 		<?php
 	}
@@ -347,6 +382,25 @@ class Bulk extends Base {
 			</div>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Check bulk options and set corresponding globals/transients.
+	 *
+	 * @param array $request The POST/GET parameters that are currently set.
+	 */
+	protected function check_bulk_options( $request ) {
+		if ( ! empty( $request['s3io_force'] ) ) {
+			$this->debug_message( 'forcing re-optimize: true' );
+			// We don't bother setting the EWWW IO force flag here.
+			// S3 IO always sets EWWW IO into force mode since S3 IO keeps its own log of optimizations.
+			$this->force = true;
+		}
+		if ( ! empty( $request['s3io_webp_only'] ) ) {
+			$this->debug_message( 'webp only: true' );
+			$this->webp_only     = true;
+			\ewwwio()->webp_only = true;
+		}
 	}
 
 	/**
@@ -437,6 +491,8 @@ class Bulk extends Base {
 			'%d', // image_size.
 			'%d', // pending.
 		);
+
+		$this->check_bulk_options( $_REQUEST );
 
 		$original_extensions = array( 'png', 'jpg', 'jpeg', 'gif' );
 
@@ -533,20 +589,23 @@ class Bulk extends Base {
 								}
 							}
 							$image_size = (int) $object['Size'];
-							if ( isset( $optimized_list[ $path ] ) && $optimized_list[ $path ]['size'] === $image_size ) {
+							if ( isset( $optimized_list[ $path ] ) && ( $this->force || $this->webp_only ) ) {
+								$reset_pending = $optimized_list[ $path ]['id'];
+								$this->debug_message( "existing record, but force or webp is active, set $reset_pending to pending" );
+							} elseif ( isset( $optimized_list[ $path ] ) && $optimized_list[ $path ]['size'] === $image_size ) {
 								$this->debug_message( 'size matches db, skipping' );
 								$skip_optimized = true;
 							} elseif ( isset( $optimized_list[ $path ] ) ) {
-								$this->debug_message( 'size does not match, set to pending' );
 								$reset_pending = $optimized_list[ $path ]['id'];
+								$this->debug_message( "size does not match, set $reset_pending to pending" );
 							}
 						} else {
 							$this->debug_message( 'not an image, skipping' );
 							continue;
 						}
-						// We don't actually have a force option at this point.
-						// They have to remove records to force a re-opt.
-						if ( ! $skip_optimized || ! empty( $_REQUEST['s3io_force'] ) ) {
+						// If an image hasn't been optimized or file size has changed ($skip_optimized),
+						// or if we're in force re-opt or WebP-only mode...
+						if ( ! $skip_optimized ) {
 							if ( $reset_pending ) {
 								$this->table_set_pending( $reset_pending );
 							} else {
@@ -705,9 +764,10 @@ class Bulk extends Base {
 		) {
 			\set_time_limit( 0 );
 		}
+		$this->check_bulk_options( $_REQUEST );
 		global $ewww_image;
 		global $wpdb;
-		$image_record = $wpdb->get_row( "SELECT id,bucket,path,orig_size FROM $wpdb->s3io_images WHERE pending = 1 LIMIT 1", \ARRAY_A );
+		$image_record = $wpdb->get_row( "SELECT * FROM $wpdb->s3io_images WHERE pending = 1 LIMIT 1", \ARRAY_A );
 		$this->debug_message( \gmdate( 'Y-m-d H:i:s' ) . 'image retrieved from db' );
 
 		$upload_dir = $this->make_upload_dir();
@@ -791,7 +851,10 @@ class Bulk extends Base {
 		$ownership_control_enforced = $this->object_ownership_enforced( $image_record['bucket'] );
 
 		$new_size = $this->filesize( $filename );
-		if ( $new_size && $new_size < $fetch_result['ContentLength'] ) {
+		if ( $this->webp_only && $new_size && $new_size < $fetch_result['ContentLength'] ) {
+			$this->debug_message( 'huh... why did we make it smaller in WebP-only mode?' );
+		}
+		if ( ! $this->webp_only && $new_size && $new_size < $fetch_result['ContentLength'] ) {
 			if ( $verbose && $wpcli ) {
 				/* translators: %s: filename */
 				\WP_CLI::line( \sprintf( \__( 'Starting re-upload for %s', 's3-image-optimizer' ), $filename ) );
@@ -887,8 +950,13 @@ class Bulk extends Base {
 			}
 			\unlink( $webp_filename );
 		}
+
+		$backup_hash = ! empty( $image_record['backup'] ) ? $image_record['backup'] : '';
+		if ( is_object( $ewww_image ) && ! empty( $ewww_image->backup ) && is_string( $ewww_image->backup ) ) {
+			$backup_hash = $ewww_image->backup;
+		}
 		$this->debug_message( \gmdate( 'Y-m-d H:i:s' ) . 'stash db record' );
-		$this->table_update( $image_record['path'], $new_size, $fetch_result['ContentLength'], $webp_size, $webp_error, $image_record['id'], $image_record['bucket'] );
+		$this->table_update( $image_record['path'], $new_size, $fetch_result['ContentLength'], $webp_size, $webp_error, $image_record['id'], $image_record['bucket'], $backup_hash );
 		$this->debug_message( \gmdate( 'Y-m-d H:i:s' ) . 'remove db record' );
 		// Make sure ewww doesn't keep a record of these files.
 		$wpdb->delete( $wpdb->ewwwio_images, array( 'path' => \ewww_image_optimizer_relativize_path( $filename ) ) );
@@ -900,7 +968,9 @@ class Bulk extends Base {
 		if ( $wpcli ) {
 			/* translators: %s: path to an image */
 			\WP_CLI::line( \sprintf( \__( 'Optimized image: %s', 's3-image-optimizer' ), $image_record['path'] ) );
-			\WP_CLI::line( $this->get_results_msg( $orig_size, $new_size ) );
+			if ( ! $this->webp_only ) {
+				\WP_CLI::line( $this->get_results_msg( $orig_size, $new_size ) );
+			}
 			if ( $webp_size ) {
 				/* translators: %s: a result message, like 'Reduced by 66.9% (2.5 MB)', translated elsewhere */
 				\WP_CLI::line( \sprintf( \__( 'WebP: %s', 's3-image-optimizer' ), $this->get_results_msg( $orig_size, $webp_size ) ) );
@@ -913,7 +983,9 @@ class Bulk extends Base {
 		$output['results'] = '<p>';
 		/* translators: %s: path to an image */
 		$output['results'] .= \sprintf( \esc_html__( 'Optimized image: %s', 's3-image-optimizer' ), '<strong>' . \esc_html( $image_record['bucket'] . '/' . $image_record['path'] ) . '</strong>' ) . '<br>';
-		$output['results'] .= \esc_html( $this->get_results_msg( $orig_size, $new_size ) ) . '<br>';
+		if ( ! $this->webp_only ) {
+			$output['results'] .= \esc_html( $this->get_results_msg( $orig_size, $new_size ) ) . '<br>';
+		}
 		if ( $webp_size ) {
 			/* translators: %s: a result message, like 'Reduced by 66.9% (2.5 MB)', translated elsewhere */
 			$output['results'] .= \sprintf( \esc_html__( 'WebP: %s', 's3-image-optimizer' ), $this->get_results_msg( $orig_size, $webp_size ) ) . '<br>';
@@ -1160,7 +1232,12 @@ class Bulk extends Base {
 			}
 			\unlink( $webp_filename );
 		}
-		$this->table_update( $url_args['path'], $new_size, $fetch_result['ContentLength'], $webp_size, $webp_error, false, $url_args['bucket'] );
+
+		$backup_hash = '';
+		if ( is_object( $ewww_image ) && ! empty( $ewww_image->backup ) && is_string( $ewww_image->backup ) ) {
+			$backup_hash = $ewww_image->backup;
+		}
+		$this->table_update( $url_args['path'], $new_size, $fetch_result['ContentLength'], $webp_size, $webp_error, false, $url_args['bucket'], $backup_hash );
 		// Make sure ewww doesn't keep a record of these files.
 		global $wpdb;
 		$wpdb->delete( $wpdb->ewwwio_images, array( 'path' => \ewww_image_optimizer_relativize_path( $filename ) ) );
@@ -1345,43 +1422,49 @@ class Bulk extends Base {
 	 * @param int    $orig_size The original filesize of the image.
 	 * @param int    $webp_size The filesize of the WebP image (if any). Optional.
 	 * @param int    $webp_error An error code for the WebP conversion. Optional.
-	 * @param int    $id The ID of the db record which we are about to update. Optional. Default to false.
-	 * @param string $bucket The name of the bucket where the image is located. Optional. Default to empty string.
+	 * @param int    $id The ID of the db record which we are about to update. Optional. Default false.
+	 * @param string $bucket The name of the bucket where the image is located. Optional. Default ''.
+	 * @param string $backup_hash A unique identifier for the API backup of this file. Optional. Default ''.
 	 */
-	protected function table_update( $path, $opt_size, $orig_size, $webp_size = 0, $webp_error = 0, $id = false, $bucket = '' ) {
+	protected function table_update( $path, $opt_size, $orig_size, $webp_size = 0, $webp_error = 0, $id = false, $bucket = '', $backup_hash = '' ) {
 		global $wpdb;
 
 		$opt_size  = (int) $opt_size;
 		$orig_size = (int) $orig_size;
 		$id        = $id ? (int) $id : (bool) $id;
 
+		$record_updates = array(
+			'image_size' => $opt_size,
+			'webp_size'  => $webp_size,
+			'webp_error' => $webp_error,
+			'backup'     => preg_replace( '/[^\w]/', '', $backup_hash ),
+			'pending'    => 0,
+		);
+		$update_formats = array(
+			'%d',
+			'%d',
+			'%d',
+			'%s',
+			'%d',
+		);
+		if ( $id ) {
+			$optimized_query = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $wpdb->s3io_images WHERE id = %d", $id ), \ARRAY_A );
+			if ( $optimized_query && ! empty( $optimized_query['backup'] ) && empty( $backup_hash ) ) {
+				$backup_hash = $optimized_query['backup'];
+			}
+		}
 		if ( $opt_size >= $orig_size ) {
 			$this->debug_message( 's3io: no savings' );
 			if ( $id ) {
 				$this->debug_message( "s3io: looking for $id" );
-				$optimized_query = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $wpdb->s3io_images WHERE id = %d", $id ), \ARRAY_A );
-				if ( $optimized_query && ! empty( $optimized_query['image_size'] ) && (int) $optimized_query['image_size'] === (int) $opt_size ) {
-					$this->debug_message( "s3io: no change for $id" );
-					return;
-				}
 				// Store info on the current image for future reference.
 				$updated = $wpdb->update(
 					$wpdb->s3io_images,
-					array(
-						'image_size' => $opt_size,
-						'webp_size'  => $webp_size,
-						'webp_error' => $webp_error,
-						'pending'    => 0,
-					),
+					$record_updates,
 					array(
 						'id' => $id,
 					),
-					array(
-						'%d',
-						'%d',
-						'%d',
-						'%d',
-					),
+					$update_formats,
 					array(
 						'%d',
 					)
@@ -1400,21 +1483,11 @@ class Bulk extends Base {
 				// Store info on the current image for future reference.
 				$updated = $wpdb->update(
 					$wpdb->s3io_images,
-					array(
-						'image_size' => $opt_size,
-						'webp_size'  => $webp_size,
-						'webp_error' => $webp_error,
-						'pending'    => 0,
-					),
+					$record_updates,
 					array(
 						'id' => $id,
 					),
-					array(
-						'%d',
-						'%d',
-						'%d',
-						'%d',
-					),
+					$update_formats,
 					array(
 						'%d',
 					)
@@ -1440,29 +1513,18 @@ class Bulk extends Base {
 				}
 			}
 		}
-		if ( ! empty( $already_optimized['image_size'] ) && (int) $opt_size === (int) $already_optimized['image_size'] ) {
-			$this->debug_message( 'returning results without update, no change' );
-			return;
-		}
 		if ( ! empty( $already_optimized['id'] ) ) {
+			if ( ! empty( $already_optimized['backup'] ) && empty( $backup_hash ) ) {
+				$backup_hash = $already_optimized['backup'];
+			}
 			// Store info on the current image for future reference.
 			$updated = $wpdb->update(
 				$wpdb->s3io_images,
-				array(
-					'image_size' => $opt_size,
-					'webp_size'  => $webp_size,
-					'webp_error' => $webp_error,
-					'pending'    => 0,
-				),
+				$record_updates,
 				array(
 					'id' => $already_optimized['id'],
 				),
-				array(
-					'%d',
-					'%d',
-					'%d',
-					'%d',
-				),
+				$update_formats,
 				array(
 					'%d',
 				)
@@ -1485,6 +1547,7 @@ class Bulk extends Base {
 				'orig_size'  => $orig_size,
 				'webp_size'  => $webp_size,
 				'webp_error' => $webp_error,
+				'backup'     => preg_replace( '/[^\w]/', '', $backup_hash ),
 			),
 			array(
 				'%s',
@@ -1493,6 +1556,7 @@ class Bulk extends Base {
 				'%d',
 				'%d',
 				'%d',
+				'%s',
 			)
 		);
 		if ( $inserted ) {

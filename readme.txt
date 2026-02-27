@@ -78,6 +78,8 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 * added: support for WebP naming mode in EWWW Image Optimizer
 * added: utility for migrating between WebP naming modes
 * added: utility to remove all WebP image copies from S3
+* added: option to force re-optimization of previously optimized images
+* added: option to only generate WebP images
 * improve: optimize by URL handles path-style URLs and 404 errors better
 * changed: AWS exception handling catches more errors and is more readable
 * updated: AWS SDK to latest version

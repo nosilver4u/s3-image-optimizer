@@ -15,6 +15,8 @@ jQuery(document).ready(function($) {
 	var s3io_i = 0;
 	var s3io_k = 0;
 	var s3io_delay = 0;
+	var s3io_force = 0;
+	var s3io_webp_only = 0;
 	// initialize the ajax actions
 	var s3io_init_action = 's3io_bulk_init';
 	var s3io_scan_action = 's3io_image_scan';
@@ -261,12 +263,20 @@ jQuery(document).ready(function($) {
 		$('.s3io-bulk-form').hide();
 		$('.s3io-bulk-info').hide();
 		$('#s3io-bulk-loading').html(s3io_vars.starting_scan);
+		if ($('#s3io-force:checkbox:checked').val()) {
+			s3io_force = 1;
+		}
+		if ($('#s3io-webp-only:checkbox:checked').val()) {
+			s3io_webp_only = 1;
+		}
 		s3ioScanBuckets();
 		return false;
 	});
 	function s3ioScanBuckets() {
 		var s3io_scan_data = {
 			action: s3io_scan_action,
+			s3io_force: s3io_force,
+			s3io_webp_only: s3io_webp_only,
 			s3io_wpnonce: s3io_vars._wpnonce,
 		};
 		$.post(ajaxurl, s3io_scan_data, function(response) {
@@ -336,6 +346,8 @@ jQuery(document).ready(function($) {
 	function s3ioProcessImage() {
 		var s3io_loop_data = {
 			action: s3io_loop_action,
+			s3io_force: s3io_force,
+			s3io_webp_only: s3io_webp_only,
 			s3io_wpnonce: s3io_vars._wpnonce,
 		};
 		var s3io_jqxhr = $.post(ajaxurl, s3io_loop_data, function(response) {

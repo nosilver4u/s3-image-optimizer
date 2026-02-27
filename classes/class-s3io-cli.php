@@ -21,27 +21,37 @@ class S3IO_CLI extends WP_CLI_Command {
 	 *
 	 * ## OPTIONS
 	 *
-	 * <delay>
+	 * [<delay>]
 	 * : optional, number of seconds to pause between images
 	 *
-	 * <force>
-	 * : optional, WARNING: will immediately empty the history of previously
-	 * optimized S3 images, there is no undo for this
+	 * [--force]
+	 * : optional, should the plugin re-optimize images that have already been processed
 	 *
-	 * <reset>
+	 * [--reset]
 	 * : optional, scan buckets again instead of resuming from last position
 	 *
-	 * <noprompt>
+	 * [--webp-only]
+	 * : optional, only do WebP Conversion, skip all other operations
+	 *
+	 * [--noprompt]
 	 * : do not prompt, just start optimizing
 	 *
-	 * <verbose>
+	 * [--verbose]
 	 * : be extra noisy, including details during the scan phase
 	 *
 	 * ## EXAMPLES
 	 *
-	 *     wp-cli s3io optimize 5 --force --reset --noprompt --verbose
+	 *     # Optimize right away with no prompt and extra output/information.
+	 *     wp-cli s3io optimize --noprompt --verbose
 	 *
-	 * @synopsis [<delay>] [--force] [--reset] [--noprompt] [--verbose]
+	 *     # Optimize with 5 seconds between images, ignoring previous results and re-optimizing everything.
+	 *     # Also, if a previous operation was interrupted, start over and rescan all buckets.
+	 *     wp-cli s3io optimize 5 --force --reset
+	 *
+	 *     # Skip normal optimization and only do WebP conversion with 3 seconds between images.
+	 *     wp-cli s3io optimize 3 --webp-only
+	 *
+	 * @synopsis [<delay>] [--force] [--reset] [--webp-only] [--noprompt] [--verbose]
 	 *
 	 * @param array $args A numbered array of arguments provided via WP-CLI without option names.
 	 * @param array $assoc_args An array of named arguments provided via WP-CLI.
@@ -64,7 +74,16 @@ class S3IO_CLI extends WP_CLI_Command {
 		// check to see if the user has asked to reset (empty) the optimized images table.
 		if ( ! empty( $assoc_args['force'] ) ) {
 			WP_CLI::line( __( 'Forcing re-optimization of previously processed images.', 's3-image-optimizer' ) );
-			s3io()->table_truncate();
+			s3io()->bulk->force = true;
+		}
+
+		if ( ! empty( $assoc_args['webp-only'] ) ) {
+			if ( empty( ewwwio()->get_option( 'ewww_image_optimizer_webp' ) ) ) {
+				WP_CLI::error( __( 'WebP Conversion is not enabled.', 's3-image-optimizer' ) );
+			}
+			WP_CLI::line( __( 'Running WebP conversion only.', 's3-image-optimizer' ) );
+			s3io()->bulk->webp_only = true;
+			\ewwwio()->webp_only    = true;
 		}
 
 		/* translators: %d: number of seconds */
@@ -114,7 +133,7 @@ class S3IO_CLI extends WP_CLI_Command {
 		$images_finished = 0;
 		$image_total     = $image_count;
 		while ( $image_count > 0 ) {
-			s3io()->bulk->bulk_loop( true, $verbose );
+			s3io()->bulk->bulk_loop( $verbose );
 			--$image_count;
 			++$images_finished;
 			WP_CLI::line( __( 'Optimized:', 's3-image-optimizer' ) . " $images_finished / $image_total" );
@@ -126,7 +145,7 @@ class S3IO_CLI extends WP_CLI_Command {
 		$image_total += $image_count;
 		if ( $image_count > 0 ) {
 			while ( $image_count > 0 ) {
-				s3io()->bulk->bulk_loop( true, $verbose );
+				s3io()->bulk->bulk_loop( $verbose );
 				--$image_count;
 				++$images_finished;
 				WP_CLI::line( __( 'Optimized:', 's3-image-optimizer' ) . " $images_finished / $image_total" );

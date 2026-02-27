@@ -369,7 +369,7 @@ body .ui-tooltip {
         -moz-transform: rotate(45deg);
         -ms-transform: rotate(45deg);
         -o-transform: rotate(45deg);
-        tranform: rotate(45deg);
+        transform: rotate(45deg);
 }
 
 .arrow.top:after {
@@ -407,6 +407,32 @@ button.s3io-handlediv {
 }
 .js .postbox.closed .s3io-handlediv .toggle-indicator:before {
 	content: "\f140";
+}
+#s3io-flex-wrapper {
+	display: flex;
+}
+#s3io-bulk-left-wrapper {
+	flex: 1 1 auto;
+}
+#s3io-bulk-controls {
+	border: solid 1px #e5e5e5;
+	background: #fff;
+	flex: 0 0 360px;
+	padding: 10px;
+	width: 24%;
+	max-width: 360px;
+	margin-left: 15px;
+}
+.ewww-help-beacon-single {
+	margin: 3px;
+}
+#s3io-delay-slider {
+	margin: 0 0 15px 10px;
+	max-width: 500px;
+}
+#s3io-delay {
+	max-width: 50px;
+	min-width: 30px;
 }
 /* For the Tools page */
 #s3io-tools-loading, #s3io-tools-counter, #s3io-tools-status p {

@@ -451,6 +451,35 @@ trait Utils {
 	}
 
 	/**
+	 * Remove webp_size and webp_error data from table when a .webp image is deleted.
+	 *
+	 * @param string $bucket The bucket on S3/Spaces.
+	 * @param string $key The object key to check on S3/Spaces.
+	 */
+	protected function delete_webp_info( $bucket, $key ) {
+		global $wpdb;
+		$wpdb->update(
+			$wpdb->s3io_images,
+			array(
+				'webp_size'  => 0,
+				'webp_error' => 0,
+			),
+			array(
+				'bucket' => $bucket,
+				'path'   => $key,
+			),
+			array(
+				'%d',
+				'%d',
+			),
+			array(
+				'%s',
+				'%s',
+			)
+		);
+	}
+
+	/**
 	 * Removes an image from the s3io_images table.
 	 *
 	 * @param int $image_id The ID of the image to remove from the table.
