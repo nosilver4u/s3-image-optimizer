@@ -434,6 +434,9 @@ button.s3io-handlediv {
 	max-width: 50px;
 	min-width: 30px;
 }
+.s3io-table {
+	display: none;
+}
 /* For the Tools page */
 #s3io-tools-loading, #s3io-tools-counter, #s3io-tools-status p {
 	margin: 10px 0;

@@ -413,7 +413,7 @@ trait Utils {
 	protected function table_count_optimized() {
 		$this->debug_message( '<b>' . __METHOD__ . '()</b>' );
 		global $wpdb;
-		$count = $wpdb->get_var( "SELECT COUNT(*) FROM $wpdb->s3io_images WHERE image_size IS NOT NULL" );
+		$count = $wpdb->get_var( "SELECT COUNT(*) FROM $wpdb->s3io_images WHERE image_size IS NOT NULL AND pending = 0" );
 		return $count;
 	}
 

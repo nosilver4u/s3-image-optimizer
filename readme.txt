@@ -81,6 +81,7 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 * added: option to force re-optimization of previously optimized images
 * added: option to only generate WebP images
 * improve: optimize by URL handles path-style URLs and 404 errors better
+* changed: bulk optimizer results consolidated with image table for less memory usage and simpler navigation
 * changed: AWS exception handling catches more errors and is more readable
 * updated: AWS SDK to latest version
 * fixed: duplicate records created when size of object in bucket changes
@@ -88,6 +89,7 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 * fixed: multiple strings missing i18n
 * fixed: undefined variables in exception handlers
 * fixed: some strings missing i18n
+* fixed: malformed AJAX responses not handled properly during bulk optimization
 * security: missing some capability checks
 
 = 2.6.1 =
