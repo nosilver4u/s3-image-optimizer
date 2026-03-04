@@ -321,12 +321,17 @@ jQuery(document).ready(function($) {
 	function s3ioUpdateBulkTable(image_row) {
 		$('.s3io-table').show();
 		s3io_vars.image_count++;
+		$('.prev-page').addClass('disabled');
+		$('.first-page').addClass('disabled');
 		if (s3io_vars.image_count >= 50) {
 			s3io_total_pages = Math.ceil(s3io_vars.image_count / 50);
 			$('.tablenav').show();
-			$('.next-page').show();
-			$('.last-page').show();
 			$('.total-pages').text(s3ioNumberFormat.format(s3io_total_pages));
+			$('.next-page').removeClass('disabled');
+			$('.last-page').removeClass('disabled');
+		} else {
+			$('.next-page').addClass('disabled');
+			$('.last-page').addClass('disabled');
 		}
 		$('.displaying-num .s3io-table-count').text(s3ioNumberFormat.format(s3io_vars.image_count));
 		// We store a copy of the last 50 image records in s3io_bulk_first_page, and need to use it here,
