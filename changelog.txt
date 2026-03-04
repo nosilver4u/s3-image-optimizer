@@ -1,8 +1,33 @@
+= 3.0.0 =
+*Release Date - March 4, 2026*
+
+* added: support for optimizing WebP image uploads
+* added: support for WebP naming mode in EWWW Image Optimizer
+* added: utility for migrating between WebP naming modes
+* added: utility to remove all WebP image copies from S3
+* added: option to force re-optimization of previously optimized images
+* added: option to only generate WebP images
+* improve: optimize by URL handles path-style URLs and 404 errors better
+* changed: bulk optimizer results consolidated with image table for less memory usage and simpler navigation
+* changed: AWS exception handling catches more errors and is more readable
+* updated: AWS SDK to latest version
+* fixed: duplicate records created when size of object in bucket changes
+* fixed: uncaught PHP exception when checking ownership controls on older buckets where policy is not explicitly set
+* fixed: multiple strings missing i18n
+* fixed: undefined variables in exception handlers
+* fixed: some strings missing i18n
+* fixed: malformed AJAX responses not handled properly during bulk optimization
+* security: missing some capability checks
+
 = 2.6.1 =
+*Release Date - August 15, 2024*
+
 * added: override auto-detected object ownership enforcement via S3IO_OBJECT_OWNERSHIP_ENFORCED constant or s3io_object_ownership_enforced filter: set either to true to disable per-object acls
 * fixed: optimize by URL incorrectly overwrites previous optimization results if multiple buckets have objects with identical paths
 
 = 2.6.0 =
+*Release Date - August 1, 2024*
+
 * added: support for buckets with object ownership enforced
 * added: force usage of path-style endpoint with S3_IMAGE_OPTIMIZER_PATH_STYLE
 * changed: improved error handling for optimize by URL
@@ -10,40 +35,58 @@
 * fixed: malformed image size information in optimization table
 
 = 2.5.1 =
+*Release Date - September 20, 2023*
+
 * changed: use updated WP coding standards
 * changed: cleanup AWS SDK folder
 
 = 2.5.0 =
+*Release Date - June 22, 2023*
+
 * added: compatibility with EWWW Image Optimizer 7+ and better future-proofing to detect compatibility errors
 * updated: AWS SDK to latest version
 * updated: improved PHP 8.2 compatibility, though there are still (non-critical) deprecation notices from the AWS SDK
 
 = 2.4.3 =
+*Release Date - November 10, 2022*
+
 * changed: display the values of any constants defined for endpoint, region, or folder restriction
 * fixed: check if the bucket list is an array before sanitizing
 
 = 2.4.2 =
+*Release Date - October 5, 2022*
+
 * added: define custom endpoint for any S3-compatible storage via S3_IMAGE_OPTIMIZER_ENDPOINT
 * fixed: cleanup of WebP copies using incorrect path
 
 = 2.4.1 =
+*Release Date - June 21, 2022*
+
 * fixed: PHP notice when updating db records
 * removed EDD_SL_Updater file/class
 
 = 2.4.0 =
+*Release Date - June 17, 2021*
+
 * fixed: failure in creating s3io/ working directory silently breaks bulk tools
 * fixed: sanitation for error messages was too aggressive
 * fixed: listBuckets error displayed even when S3_IMAGE_OPTIMIZER_BUCKET is defined
 
 = 2.3 =
+*Release Date - November 24, 2020*
+
 * fixed: conflict getting local uploads directory when S3 Uploads plugin is active
 
 = 2.2 =
+*Release Date - August 13, 2020*
+
 * added: generate and upload WebP version of your images in accordance with EWWW IO settings (WebP Conversion and Force WebP)
 * fixed bulk toggle-arrow styling
 * additional sanitizing and escaping for better security
 
 = 2.1 =
+*Release Date - March 30, 2020*
+
 * updated AWS SDK to v3, let us know if you encounter errors
 * catch errors when defined region is incorrect
 * added ability to remove license key (e.g. if you entered it wrong)
@@ -55,51 +98,75 @@
 * fixed URL optimizer with url-encoded characters (like spaces = %20)
 
 = 2.0 =
+*Release Date - August 14, 2019*
+
 * added compatibility with Digital Ocean Spaces
 * lots of code cleanup and sanitation
 
 = 1.9 =
+*Release Date - July 5, 2019*
+
 * prevent s3io_resume option from autoloading
 * reset s3io_resume after completion
 
 = 1.8 =
+*Release Date - July 5, 2019*
+
 * fixed error with redeclaring ewwwio_debug_message() in some edge cases
 * fixed bulk optimizer UI bugs
 
 = 1.7 =
+*Release Date - May 7, 2019*
+
 * problem with AWS object context (not global when it needs to be)
 * updated plugin updater class
 * updated AWS SDK
 
 = 1.6 =
+*Release Date - May 10, 2018*
+
 * integrate AWS SDK and remove external AWS plugin dependency
 * catch errors better when AWS keys are not configured
 
 = 1.5 =
+*Release Date - November 30, 2017*
+
 * catch error when AWS plugin is not properly configured
 
 = 1.4 =
+*Release Date - May 11, 2017*
+
 * catch permissions errors on individual files
 * removed undefined constant
 * fixed undefined variable during wp-cli operation
 
 = 1.3 =
+*Release Date - March 14, 2017*
+
 * fixed error when using empty() on a constant that breaks really old PHP installs (5.4 or lower)
 
 = 1.2 =
+*Release Date - February 27, 2017*
+
 * catch fatal errors when S3 permissions are not sufficient
 * upgrade plugin updater class
 * added S3_IMAGE_OPTIMIZER_REGION to set region manually when permissions are too restrictive
 
 = 1.1 =
+*Release Date - September 19, 2016*
+
 * table updates more efficient and robust, searches by id first, and only by path if that fails
 * fixed potential issue with images optimized by url not being stored in database
 
 = 1.0 =
+*Release Date - August 25, 2016*
+
 * fixed issues with checking that a constant is empty in PHP <5.5
 * make sure to remove the leading slash from S3_IMAGE_OPTIMIZER_FOLDER
 
 = .9 =
+*Release Date - August 23, 2016*
+
 * added WP-CLI interface: 'wp-cli help s3io optimize' for more information
 * added constants to define bucket and sub-folder to optimize: S3_IMAGE_OPTIMIZER_BUCKET and S3_IMAGE_OPTIMIZER_FOLDER
 * fixed memory overload when running bulk operation with large s3 buckets
@@ -108,28 +175,44 @@
 * added S3 URL Optimizer to optimize individual images by their URL
 
 = .8 =
+*Release Date - July, 2016*
+
 * fixed fatal error when bucket/account requires v4 authentication
 * prevent debug information from displaying on settings page improperly
 
 = .7 =
+*Release Date - June 14, 2016*
+
 * fixed fatal error when bucket location is empty (us-east) in accounts with mixed regions
 
 = .6 =
+*Release Date - August 23, 2016*
+
 * fixed fatal error when bucket region is not set properly
 
 = .5 =
+*Release Date - June 11, 2016*
+
 * fixed fatal error when other plugins are using EDD SL Updates class
 * fixed acl not set when updating images
 
 = .4 =
+*Release Date - February 2, 2016*
+
 * ported table schema fixes from EWWW I.O.
 * added option for Frankfurt S3 authentication method
 
 = .3 =
+*Release Date - February 2, 2016*
+
 * automatic update checking and license activation
 
 = .2 =
+*Release Date - February 2, 2016*
+
 * bugfixes
 
 = .1 =
+*Release Date - February 2, 2016*
+
 * First release

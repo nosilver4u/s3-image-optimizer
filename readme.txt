@@ -1,10 +1,8 @@
 === S3 Image Optimizer ===
 Contributors: nosilver4u
 Tags: s3, image, optimize, compression, wp-cli
-Requires at least: 6.3
-Tested up to: 6.6
-Requires PHP: 8.1
-Stable tag: 2.6.1
+Tested up to: 6.9
+Stable tag: 3.0.0
 License: GPLv3
 
 Compress images in Amazon S3 buckets using lossless and lossy optimization methods via the EWWW Image Optimizer.
@@ -73,7 +71,9 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 
 == Changelog ==
 
-= 2.6.2 =
+= 3.0.0 =
+*Release Date - March 4, 2026*
+
 * added: support for optimizing WebP image uploads
 * added: support for WebP naming mode in EWWW Image Optimizer
 * added: utility for migrating between WebP naming modes
@@ -93,10 +93,14 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 * security: missing some capability checks
 
 = 2.6.1 =
+*Release Date - August 15, 2024*
+
 * added: override auto-detected object ownership enforcement via S3IO_OBJECT_OWNERSHIP_ENFORCED constant or s3io_object_ownership_enforced filter: set either to true to disable per-object acls
 * fixed: optimize by URL incorrectly overwrites previous optimization results if multiple buckets have objects with identical paths
 
 = 2.6.0 =
+*Release Date - August 1, 2024*
+
 * added: support for buckets with object ownership enforced
 * added: force usage of path-style endpoint with S3_IMAGE_OPTIMIZER_PATH_STYLE
 * changed: improved error handling for optimize by URL
@@ -104,40 +108,58 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 * fixed: malformed image size information in optimization table
 
 = 2.5.1 =
+*Release Date - September 20, 2023*
+
 * changed: use updated WP coding standards
 * changed: cleanup AWS SDK folder
 
 = 2.5.0 =
+*Release Date - June 22, 2023*
+
 * added: compatibility with EWWW Image Optimizer 7+ and better future-proofing to detect compatibility errors
 * updated: AWS SDK to latest version
 * updated: improved PHP 8.2 compatibility, though there are still (non-critical) deprecation notices from the AWS SDK
 
 = 2.4.3 =
+*Release Date - November 10, 2022*
+
 * changed: display the values of any constants defined for endpoint, region, or folder restriction
 * fixed: check if the bucket list is an array before sanitizing
 
 = 2.4.2 =
+*Release Date - October 5, 2022*
+
 * added: define custom endpoint for any S3-compatible storage via S3_IMAGE_OPTIMIZER_ENDPOINT
 * fixed: cleanup of WebP copies using incorrect path
 
 = 2.4.1 =
+*Release Date - June 21, 2022*
+
 * fixed: PHP notice when updating db records
 * removed EDD_SL_Updater file/class
 
 = 2.4.0 =
+*Release Date - June 17, 2021*
+
 * fixed: failure in creating s3io/ working directory silently breaks bulk tools
 * fixed: sanitation for error messages was too aggressive
 * fixed: listBuckets error displayed even when S3_IMAGE_OPTIMIZER_BUCKET is defined
 
 = 2.3 =
+*Release Date - November 24, 2020*
+
 * fixed: conflict getting local uploads directory when S3 Uploads plugin is active
 
 = 2.2 =
+*Release Date - August 13, 2020*
+
 * added: generate and upload WebP version of your images in accordance with EWWW IO settings (WebP Conversion and Force WebP)
 * fixed bulk toggle-arrow styling
 * additional sanitizing and escaping for better security
 
 = 2.1 =
+*Release Date - March 30, 2020*
+
 * updated AWS SDK to v3, let us know if you encounter errors
 * catch errors when defined region is incorrect
 * added ability to remove license key (e.g. if you entered it wrong)
@@ -149,5 +171,14 @@ Most problems we've seen are either permissions-related, or covered by the timeo
 * fixed URL optimizer with url-encoded characters (like spaces = %20)
 
 = 2.0 =
+*Release Date - August 14, 2019*
+
 * added compatibility with Digital Ocean Spaces
 * lots of code cleanup and sanitation
+
+= Earlier versions =
+Please refer to the separate changelog.txt file.
+
+== Credits ==
+
+Written by [Shane Bishop](https://ewww.io) with special thanks to my [Lord and Savior](https://www.iamsecond.com/).
