@@ -1,7 +1,7 @@
 === S3 Image Optimizer ===
 Contributors: nosilver4u
 Tags: s3, image, optimize, compression, wp-cli
-Tested up to: 6.9
+Tested up to: 7.0
 Stable tag: 3.0.0
 License: GPLv3
 
@@ -70,6 +70,11 @@ If you've tried everything, and WP-CLI isn't an option with your web host, find 
 Most problems we've seen are either permissions-related, or covered by the timeout stuff above. If you have a question, [shoot us an email](https://ewww.io/contact-us/)!
 
 == Changelog ==
+
+= 3.0.1 =
+*Release Date - TBD*
+
+* fixed: previous/first buttons disabled incorrectly during bulk operation
 
 = 3.0.0 =
 *Release Date - March 4, 2026*

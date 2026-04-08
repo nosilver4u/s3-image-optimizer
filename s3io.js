@@ -321,8 +321,6 @@ jQuery(document).ready(function($) {
 	function s3ioUpdateBulkTable(image_row) {
 		$('.s3io-table').show();
 		s3io_vars.image_count++;
-		$('.prev-page').addClass('disabled');
-		$('.first-page').addClass('disabled');
 		if (s3io_vars.image_count >= 50) {
 			s3io_total_pages = Math.ceil(s3io_vars.image_count / 50);
 			$('.tablenav').show();
@@ -343,6 +341,8 @@ jQuery(document).ready(function($) {
 		}
 		s3io_table_skew = 0;
 		if (s3io_pointer === 0) {
+			$('.prev-page').addClass('disabled');
+			$('.first-page').addClass('disabled');
 			image_row.prependTo('#s3io-bulk-table tbody').hide().fadeIn(400,function() {
 				if ($('#s3io-bulk-table tbody').children().length > 50) {
 					// Remove the last row, as it belongs on the next page now.
